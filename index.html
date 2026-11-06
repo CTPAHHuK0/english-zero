@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<title>Английский с нуля</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Английский с самого нуля: буквы, звуки, чтение, фразы и истории. По 5–15 минут в день.">
+<meta name="theme-color" content="#16203A">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Andika:wght@400;700&family=Golos+Text:wght@400;500;600;700&family=Unbounded:wght@500;700&display=swap">
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<div id="app">
+  <main id="main" tabindex="-1">
+    <p class="boot">Загрузка…</p>
+  </main>
+  <nav id="tabbar" aria-label="Разделы">
+    <button class="tab" type="button" data-tab="home"><span class="tab-ico" data-icon="route"></span><span>Маршрут</span></button>
+    <button class="tab" type="button" data-tab="review"><span class="tab-ico" data-icon="repeat"></span><span>Повторение</span><b class="tab-badge" hidden></b></button>
+    <button class="tab" type="button" data-tab="dict"><span class="tab-ico" data-icon="book"></span><span>Словарь</span></button>
+    <button class="tab" type="button" data-tab="profile"><span class="tab-ico" data-icon="user"></span><span>Профиль</span></button>
+  </nav>
+</div>
+<div id="overlay" hidden></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<canvas id="confetti" aria-hidden="true"></canvas>
+<noscript><p class="boot">Для работы приложения нужен JavaScript.</p></noscript>
+
+<script src="js/util.js"></script>
+<script src="js/storage.js"></script>
+<script src="js/srs.js"></script>
+<script src="js/speech.js"></script>
+<script src="js/content/define.js"></script>
+<script src="js/content/letters.js"></script>
+<script src="js/content/units-1.js"></script>
+<script src="js/content/units-2.js"></script>
+<script src="js/content/units-3.js"></script>
+<script src="js/content/stories.js"></script>
+<script src="js/course.js"></script>
+<script src="js/progress.js"></script>
+<script src="js/exercises.js"></script>
+<script src="js/lesson.js"></script>
+<script src="js/story.js"></script>
+<script src="js/screens.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

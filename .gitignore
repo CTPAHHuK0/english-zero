@@ -1,0 +1,4 @@
+# local tooling
+.claude/
+# build output only used for the claude.ai preview
+dist/artifact.html
