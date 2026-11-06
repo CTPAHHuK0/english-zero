@@ -10,6 +10,8 @@
 
 Почему всё устроено именно так — в [docs/research.md](docs/research.md).
 
+**Открыть приложение:** https://ctpahhuk0.github.io/english-zero/ (на Android: меню Chrome ⋮ → «Установить приложение»).
+
 ## Как открыть
 
 ### На компьютере
