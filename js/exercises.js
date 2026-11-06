@@ -22,7 +22,6 @@
 
   const LETTER_CONF = { b: 'dpq', d: 'bpq', p: 'qbd', q: 'pgd', n: 'umh', u: 'nvy', m: 'nw', w: 'mv', i: 'ljt', l: 'ijt', j: 'ig', g: 'qj', h: 'nk', v: 'uwy', y: 'vj', e: 'ca', a: 'eo', o: 'ac', c: 'eo', r: 'nt', t: 'lf', f: 'tl', s: 'zc', z: 'sx', x: 'zk', k: 'xh' };
   const NAME_CONF = { A: 'ERHI', B: 'VDPE', C: 'SZKE', D: 'BTEG', E: 'IAYG', F: 'SVHX', G: 'JZDE', H: 'AKEX', I: 'EYAR', J: 'GAKY', K: 'QCAJ', L: 'MNEF', M: 'NLE', N: 'MLE', O: 'UAQ', P: 'BTDE', Q: 'KUCW', R: 'AEIO', S: 'FXCZ', T: 'DPEB', U: 'YWQO', V: 'BZWE', W: 'VYUD', X: 'SKZE', Y: 'WIUE', Z: 'CGSE' };
-  const PROPER = new Set(['anna', 'tom', 'ben', 'moscow', 'russia', 'boston', 'english', 'america', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'god']);
   const GRAPHEMES = ['igh', 'sh', 'ch', 'th', 'ck', 'ng', 'ee', 'ea', 'oo', 'ai', 'ay', 'oa', 'ow', 'ou', 'ar', 'or', 'er', 'ir', 'ur', 'qu'];
 
   X.nameSay = ch => ch.toUpperCase() + '.';
@@ -54,11 +53,7 @@
   const fbOf = it => ({ en: it.en, ru: it.ru });
   const family = k => (k === 'phrase' || k === 'sent') ? ['phrase', 'sent'] : [k];
 
-  function tokenize(en) {
-    return en.replace(/[.,!?;:]/g, '').split(/\s+/).filter(Boolean)
-      .map((w, i) => (i === 0 && !PROPER.has(w.toLowerCase()) && !/^I(’|'|$)/.test(w)) ? w.toLowerCase() : w);
-  }
-  X.tokenize = tokenize;
+  const tokenize = U.tokenize;
 
   // ---------- distractors ----------
   function pool(item, ctx, test) {
@@ -446,7 +441,7 @@
     const all = U.shuffle([L.ch, ...others]);
     return choice({
       title: 'Найдите эту же букву, но маленькую', prompt: h('div', { class: 'prompt' }, h('div', { class: 'bigletter en' }, L.uc)),
-      options: all.map(c => ({ cls: 'letter-opt en', label: c })), correct: all.indexOf(L.ch), fb: { en: L.uc + ' ' + L.ch, ru: '' }, sayAfter: X.nameSay(L.ch)
+      options: all.map(c => ({ cls: 'letter-opt en', label: c })), correct: all.indexOf(L.ch), fb: { en: L.uc + ' ' + L.ch, ru: '', say: X.nameSay(L.ch) }, sayAfter: X.nameSay(L.ch)
     });
   };
 
@@ -471,7 +466,7 @@
     const say = X.nameSay(N.ch);
     return choice({
       title: 'Какую букву назвали?', prompt: h('div', { class: 'prompt' }, audioRow(say)), autoplay: say,
-      options: all.map(c => ({ cls: 'letter-opt en', label: c })), correct: all.indexOf(N.uc), fb: { en: N.uc + ' ' + N.ch, ru: '' }
+      options: all.map(c => ({ cls: 'letter-opt en', label: c })), correct: all.indexOf(N.uc), fb: { en: N.uc + ' ' + N.ch, ru: '', say }
     });
   };
 

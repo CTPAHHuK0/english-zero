@@ -16,7 +16,7 @@
     const others = vs.filter(v => v !== def);
     return others.length ? others[hsh % others.length] : null;
   }
-  const sayLine = line => Sp.speak(line[1], { voice: voiceFor(line[0]) });
+  const sayLine = line => Sp.speak(line[1], { clip: 'story|' + U.audioKey(line[1]), voice: voiceFor(line[0]) });
 
   let popT;
   function gloss(word, wEl) {

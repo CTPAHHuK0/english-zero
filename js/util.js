@@ -97,6 +97,16 @@ window.A = window.A || {};
     return f[2];
   };
 
+  // Split an English phrase into word tiles; lower-case the first word unless it is a name or "I"
+  const PROPER = new Set(['anna', 'tom', 'ben', 'moscow', 'russia', 'boston', 'english', 'america', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'god']);
+  U.tokenize = function (en) {
+    return en.replace(/[.,!?;:]/g, '').split(/\s+/).filter(Boolean)
+      .map((w, i) => (i === 0 && !PROPER.has(w.toLowerCase()) && !/^I(’|'|$)/.test(w)) ? w.toLowerCase() : w);
+  };
+
+  // Key under which a recorded clip is stored (must match tools/audio-inventory.js)
+  U.audioKey = t => String(t).toLowerCase().replace(/[’‘`]/g, "'").replace(/\s+/g, ' ').trim();
+
   U.isTextPic = p => !!p && /^[0-9A-Za-zА-Яа-яЁё.,:\- ]+$/.test(p);
 
   U.debounce = function (fn, ms) {

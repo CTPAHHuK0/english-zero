@@ -245,7 +245,7 @@
         U.sfx('bad');
         U.vibrate([30, 40, 30]);
         showFb('bad', 'Правильный ответ:', ex);
-        const say = (ex.fb && ex.fb.en) || ex.sayAfter;
+        const say = (ex.fb && (ex.fb.say || ex.fb.en)) || ex.sayAfter;
         setTimeout(() => { if (S && S.ex === ex) { if (ex.afterWrong) ex.afterWrong(); else if (say) Sp.speak(say); } }, 450);
         if (e.t === 'ex') requeue(e);
       }
@@ -266,7 +266,7 @@
     } else if (fb && kind === 'good' && fb.en && fb.ru) {
       body.append(h('span', { class: 'en', style: 'font-size:17px' }, fb.en), ' — ' + fb.ru);
     }
-    const replay = fb && fb.en ? X.auBtn(fb.en, { cls: 'xs fb-replay' }) : null;
+    const replay = fb && fb.en ? X.auBtn(fb.say || fb.en, { cls: 'xs fb-replay' }) : null;
     U.fill(el.fb,
       h('div', { class: 'fb-ico', html: U.icon(kind === 'good' ? 'check' : kind === 'bad' ? 'x' : 'info') }),
       h('div', { class: 'grow' }, h('div', { class: 'fb-title' }, title), body),

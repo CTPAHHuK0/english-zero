@@ -1,4 +1,5 @@
 # local tooling
 .claude/
+.audio-cache/
 # build output only used for the claude.ai preview
 dist/artifact.html

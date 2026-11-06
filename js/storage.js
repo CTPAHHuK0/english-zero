@@ -11,7 +11,8 @@
       onboarded: false,
       settings: {
         goal: 40,            // XP per day
-        voiceURI: '',        // '' = choose automatically
+        voice: 'heart',      // recorded voice id from js/content/voices.js, or 'tts' for the device synthesizer
+        voiceURI: '',        // device voice when voice === 'tts'; '' = choose automatically
         rate: 0.95,
         mic: true,
         sfx: true,

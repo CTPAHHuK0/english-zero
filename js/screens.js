@@ -194,7 +194,7 @@
     const en = it.kind === 'letter' ? it.ch : it.en;
     const ru = it.kind === 'letter' ? 'как в ' + it.key + ' — ' + it.keyRu : it.ru;
     const say = it.kind === 'letter' ? it.key : it.kind === 'pair' ? it.a.en + '. ' + it.b.en : it.en;
-    return h('button', { class: 'dict-row', type: 'button', onclick: () => Sp.speak(say) },
+    return h('button', { class: 'dict-row', type: 'button', onclick: () => (it.kind === 'pair' ? Sp.speakSeq([it.a.en, it.b.en]) : Sp.speak(say)) },
       h('span', { class: 'pic' + (U.isTextPic(pic) ? ' txt' : '') }, pic || ''),
       h('span', { style: 'min-width:0' }, h('div', { class: 'en' }, en), h('div', { class: 'ru' }, ru)),
       h('span', { class: 'strength' + (r < 0.7 ? ' weak' : ''), title: 'Прочность памяти: ' + Math.round(r * 100) + '%' },
@@ -262,6 +262,10 @@
     return h('div', { class: 'set-row' }, h('label', { class: 'grow', for: forId || null }, h('b', {}, title), sub ? h('span', {}, sub) : null), control);
   }
   const saveSetting = (k, v) => { St.state.settings[k] = v; St.save(); };
+  // The voice list on the profile screen refreshes when device voices or audio packs arrive
+  let voiceUi = null;
+  Sp.onVoices(() => { if (voiceUi) voiceUi(); });
+  Sp.onPack(() => { if (voiceUi) voiceUi(); });
 
   Scr.profile = function (main) {
     const s = St.state, st = s.stats, si = P.streakInfo();
@@ -269,16 +273,29 @@
     const acc = st.answered ? Math.round(st.correct / st.answered * 100) : 0;
     const stat = (b, t) => h('div', { class: 'stat' }, h('b', {}, String(b)), h('span', {}, t));
 
-    // voices
+    // voices: recorded ones first, then the device synthesizer
     const voiceSel = h('select', { id: 'set-voice' });
+    const voiceNote = h('span', {});
     function fillVoices() {
-      const cur = s.settings.voiceURI;
-      voiceSel.replaceChildren(h('option', { value: '' }, 'Автоматически'),
-        ...Sp.voices().map(v => h('option', { value: v.voiceURI, selected: v.voiceURI === cur }, v.name.replace(/^(Microsoft|Google)\s+/, '') + ' (' + v.lang + ')')));
+      const mode = Sp.voiceMode(), uri = s.settings.voiceURI;
+      U.fill(voiceSel,
+        h('optgroup', { label: 'Записанные голоса' }, Sp.mainVoices().map(v => h('option', { value: v.id, selected: mode === v.id }, v.label))),
+        Sp.ttsSupported ? h('optgroup', { label: 'Голос устройства' },
+          h('option', { value: 'tts:', selected: mode === 'tts' && !uri }, 'Голос устройства (автоматически)'),
+          Sp.voices().map(v => h('option', { value: 'tts:' + v.voiceURI, selected: mode === 'tts' && v.voiceURI === uri }, v.name.replace(/^(Microsoft|Google)\s+/, '') + ' (' + v.lang + ')'))) : null);
+      voiceNote.textContent = mode === 'tts' ? 'Синтезатор устройства: качество зависит от устройства'
+        : Sp.packReady(mode) ? 'Записанная озвучка, работает без интернета' : 'Озвучка загружается…';
     }
     fillVoices();
-    Sp.onVoices(fillVoices);
-    voiceSel.onchange = () => { saveSetting('voiceURI', voiceSel.value); Sp.speak('Hello! Nice to meet you.'); };
+    voiceUi = fillVoices;
+    voiceSel.onchange = async () => {
+      const v = voiceSel.value;
+      if (v.slice(0, 4) === 'tts:') { s.settings.voice = 'tts'; s.settings.voiceURI = v.slice(4); }
+      else { s.settings.voice = v; St.save(); fillVoices(); await Sp.loadPack(v); }
+      St.save();
+      fillVoices();
+      Sp.speak('Hello! Nice to meet you.');
+    };
     const rate = h('input', { type: 'range', id: 'set-rate', min: '0.6', max: '1.2', step: '0.05', value: String(s.settings.rate) });
     rate.onchange = () => { saveSetting('rate', parseFloat(rate.value)); Sp.speak('This is my speed.'); };
     const goalSel = h('select', { id: 'set-goal' }, GOALS.map(g => h('option', { value: g.xp, selected: g.xp === s.settings.goal }, g.t + ' · ' + g.xp + ' XP')));
@@ -286,7 +303,8 @@
     const themeSel = h('select', { id: 'set-theme' }, [['system', 'Как в системе'], ['light', 'Светлая'], ['dark', 'Тёмная']].map(([v, t]) => h('option', { value: v, selected: s.settings.theme === v }, t)));
     themeSel.onchange = () => { saveSetting('theme', themeSel.value); A.App.applyTheme(); };
 
-    const noVoice = Sp.supported && !Sp.hasEnglish();
+    const ttsMode = Sp.voiceMode() === 'tts';
+    const noVoice = ttsMode && Sp.ttsSupported && !Sp.hasEnglish();
     U.fill(main,
       h('h1', { class: 'h1' }, 'Профиль'),
       h('div', { class: 'stat-grid', style: 'margin-top:14px' },
@@ -312,10 +330,10 @@
 
       h('h2', { class: 'h2 section-title' }, 'Настройки'),
       noVoice ? h('p', { class: 'notice', style: 'margin-bottom:10px' }, 'На устройстве не найден английский голос. На Android: Настройки → Специальные возможности → Синтез речи (Преобразование текста в речь) → Google → установите «English (United States)».') : null,
-      !Sp.supported ? h('p', { class: 'notice', style: 'margin-bottom:10px' }, 'Этот браузер не умеет озвучивать текст. Откройте приложение в Chrome.') : null,
+      ttsMode && !Sp.ttsSupported ? h('p', { class: 'notice', style: 'margin-bottom:10px' }, 'Этот браузер не умеет озвучивать текст сам. Выберите записанный голос.') : null,
       h('div', { class: 'settings' },
         setRow('Дневная цель', null, goalSel, 'set-goal'),
-        setRow('Голос', 'Лучше всего звучат голоса Google и «Natural»', voiceSel, 'set-voice'),
+        setRow('Голос', voiceNote, voiceSel, 'set-voice'),
         setRow('Скорость речи', null, rate, 'set-rate'),
         setRow('Проверить звук', null, h('button', { class: 'btn sm', type: 'button', onclick: () => Sp.speak('Hello! Let’s learn English.') }, 'Слушать')),
         setRow('Упражнения с микрофоном', Sp.recSupported ? 'Распознавание речи (нужен интернет)' : 'Не поддерживается этим браузером', sw('set-mic', s.settings.mic && Sp.recSupported, v => { saveSetting('mic', v); if (v) Sp.micBlocked = false; }, !Sp.recSupported), 'set-mic'),
@@ -450,12 +468,11 @@
       const au = h('button', { class: 'au', type: 'button', 'aria-label': 'Прослушать', html: U.icon('speaker') });
       au.onclick = () => { au.classList.add('playing'); Sp.speak('Hello! Welcome! Let’s learn English.').then(() => au.classList.remove('playing')); };
       const help = h('div', { class: 'notice', hidden: true },
-        'Проверьте громкость. На Android: Настройки → Специальные возможности → Синтез речи → Google → установите английский язык. Голос можно выбрать позже в профиле.');
+        'Проверьте громкость и не выключен ли звук у вкладки браузера. Подождите пару секунд, пока загрузится озвучка, и нажмите ещё раз. Голос можно сменить позже в профиле.');
       return h('div', { class: 'onb' },
         h('h1', { class: 'h1' }, 'Проверим звук'),
         h('p', { class: 'onb-lead' }, 'Английский мы будем в основном слушать. Нажмите на кнопку и включите звук.'),
         h('div', { class: 'prompt', style: 'padding:24px 0' }, au),
-        !Sp.supported ? h('p', { class: 'notice' }, 'Этот браузер не умеет озвучивать текст. Лучше открыть приложение в Chrome.') : null,
         help,
         h('div', { class: 'onb-foot' }, dots(),
           h('button', { class: 'btn primary block', type: 'button', onclick: () => go(2) }, 'Слышу'),

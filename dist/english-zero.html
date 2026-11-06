@@ -958,6 +958,16 @@ window.A = window.A || {};
     return f[2];
   };
 
+  // Split an English phrase into word tiles; lower-case the first word unless it is a name or "I"
+  const PROPER = new Set(['anna', 'tom', 'ben', 'moscow', 'russia', 'boston', 'english', 'america', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'god']);
+  U.tokenize = function (en) {
+    return en.replace(/[.,!?;:]/g, '').split(/\s+/).filter(Boolean)
+      .map((w, i) => (i === 0 && !PROPER.has(w.toLowerCase()) && !/^I(’|'|$)/.test(w)) ? w.toLowerCase() : w);
+  };
+
+  // Key under which a recorded clip is stored (must match tools/audio-inventory.js)
+  U.audioKey = t => String(t).toLowerCase().replace(/[’‘`]/g, "'").replace(/\s+/g, ' ').trim();
+
   U.isTextPic = p => !!p && /^[0-9A-Za-zА-Яа-яЁё.,:\- ]+$/.test(p);
 
   U.debounce = function (fn, ms) {
@@ -1123,7 +1133,8 @@ window.A = window.A || {};
       onboarded: false,
       settings: {
         goal: 40,            // XP per day
-        voiceURI: '',        // '' = choose automatically
+        voice: 'heart',      // recorded voice id from js/content/voices.js, or 'tts' for the device synthesizer
+        voiceURI: '',        // device voice when voice === 'tts'; '' = choose automatically
         rate: 0.95,
         mic: true,
         sfx: true,
@@ -1271,27 +1282,117 @@ window.A = window.A || {};
 </script>
 <script>
 'use strict';
-// Text-to-speech (speechSynthesis) and speech recognition (webkitSpeechRecognition).
+// Speech output and recognition.
+// Output prefers recorded neural-voice clips (audio packs from tools/make_audio.py) and falls back to the
+// device's speech synthesizer (speechSynthesis) for anything not recorded, or when the learner picks it.
 (function (A) {
   const S = A.Speech = {};
   const synth = window.speechSynthesis;
-  S.supported = !!synth && typeof window.SpeechSynthesisUtterance !== 'undefined';
+  const AUDIO_DIR = 'audio/';
+  const settings = () => A.Store.state.settings;
+  S.supported = true; // recorded audio works everywhere; ttsSupported tells about the synthesizer
+  S.ttsSupported = !!synth && typeof window.SpeechSynthesisUtterance !== 'undefined';
 
-  let voices = [];
-  let listeners = [];
-  function loadVoices() {
-    if (!S.supported) return;
-    try {
-      voices = synth.getVoices().filter(v => /^en([-_]|$)/i.test(v.lang));
-    } catch (e) { voices = []; }
-    listeners.forEach(fn => fn(voices));
+  // ---------- Recorded audio packs ----------
+  const packs = {};      // id -> { type, clips: { key: base64 } }
+  const loading = {};    // id -> Promise
+  const urls = {};       // 'pack|key' -> blob URL
+  const packListeners = [];
+  S.addPack = function (id, data) {
+    packs[id] = data;
+    packListeners.forEach(fn => fn(id));
+  };
+  S.onPack = fn => packListeners.push(fn);
+  S.packReady = id => !!packs[id];
+  S.hasClip = (text, id) => { const p = packs[id || S.voiceMode()]; return !!p && !!p.clips[A.U.audioKey(text)]; };
+  S.packLoading = id => !!loading[id] && !packs[id];
+
+  function viaScript(src) {
+    return new Promise((resolve, reject) => {
+      const s = document.createElement('script');
+      s.src = src;
+      s.onload = resolve;
+      s.onerror = reject;
+      document.head.appendChild(s);
+    });
   }
-  if (S.supported) {
+  function viaFetch(src) {
+    return fetch(src).then(r => { if (!r.ok) throw new Error('HTTP ' + r.status); return r.text(); }).then(t => {
+      const m = t.match(/^A\.Speech\.addPack\("([^"]+)",([\s\S]*)\);\s*$/);
+      if (!m) throw new Error('bad pack');
+      S.addPack(m[1], JSON.parse(m[2]));
+    });
+  }
+  S.loadPack = function (id) {
+    if (packs[id]) return Promise.resolve();
+    if (!loading[id]) {
+      const src = AUDIO_DIR + id + '.js';
+      // file:// pages cannot fetch() neighbours, but can load them as scripts
+      loading[id] = (location.protocol === 'file:' ? viaScript(src) : viaFetch(src).catch(() => viaScript(src)))
+        .catch(() => { delete loading[id]; });
+    }
+    return loading[id];
+  };
+  S.mainVoices = () => A.DATA.voices.main;
+  S.voiceMode = () => {
+    const v = settings().voice;
+    return v === 'tts' || S.mainVoices().some(m => m.id === v) ? v : S.mainVoices()[0].id;
+  };
+
+  function clipUrl(packId, key) {
+    const p = packs[packId];
+    if (!p || !p.clips[key]) return null;
+    const id = packId + '|' + key;
+    if (!urls[id]) {
+      const bin = atob(p.clips[key]);
+      const arr = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) arr[i] = bin.charCodeAt(i);
+      urls[id] = URL.createObjectURL(new Blob([arr], { type: p.type.split(';')[0] }));
+    }
+    return urls[id];
+  }
+  // Recorded clip for a text: the chosen voice first, then the other recorded voice
+  function findClip(text, opt) {
+    if (opt.clip) { const u = clipUrl('shared', opt.clip); if (u) return u; }
+    const key = A.U.audioKey(text);
+    const mode = S.voiceMode();
+    const order = [mode].concat(S.mainVoices().map(v => v.id).filter(id => id !== mode));
+    for (const id of order) { const u = clipUrl(id, key); if (u) return u; }
+    return null;
+  }
+
+  let cur = null;      // { audio, fin }
+  let seq = 0;         // increases on every stop(); cancels running sequences
+  function playUrl(url, rate) {
+    return new Promise(resolve => {
+      const a = new Audio(url);
+      a.preservesPitch = true;
+      a.playbackRate = rate;
+      let done = false;
+      const fin = () => { if (done) return; done = true; clearTimeout(t); if (cur && cur.audio === a) cur = null; resolve(); };
+      a.onended = fin;
+      a.onerror = fin;
+      const t = setTimeout(fin, 20000);
+      cur = { audio: a, fin };
+      const p = a.play();
+      if (p && p.catch) p.catch(fin);
+    });
+  }
+
+  // ---------- Device synthesizer (fallback) ----------
+  let voices = [];
+  const voiceListeners = [];
+  function loadVoices() {
+    if (!S.ttsSupported) return;
+    try { voices = synth.getVoices().filter(v => /^en([-_]|$)/i.test(v.lang)); } catch (e) { voices = []; }
+    voiceListeners.forEach(fn => fn(voices));
+  }
+  if (S.ttsSupported) {
     loadVoices();
     if (synth.addEventListener) synth.addEventListener('voiceschanged', loadVoices);
     else synth.onvoiceschanged = loadVoices;
   }
-  S.onVoices = fn => listeners.push(fn);
+  S.onVoices = fn => voiceListeners.push(fn);
   S.voices = () => voices;
   S.hasEnglish = () => voices.length > 0;
 
@@ -1301,53 +1402,103 @@ window.A = window.A || {};
     if (lang === 'en-us') s += 10; else if (lang === 'en-gb') s += 3;
     if (/natural|neural|online/i.test(v.name)) s += 6;
     if (/google/i.test(v.name)) s += 5;
-    if (/samantha|aria|jenny|ava|allison|guy|zira/i.test(v.name)) s += 2;
+    if (/samantha|aria|jenny|ava|allison|guy/i.test(v.name)) s += 2;
     return s;
   }
   S.defaultVoice = function () {
-    const want = A.Store.state.settings.voiceURI;
-    if (want) {
-      const v = voices.find(x => x.voiceURI === want);
-      if (v) return v;
-    }
+    const want = settings().voiceURI;
+    if (want) { const v = voices.find(x => x.voiceURI === want); if (v) return v; }
     return voices.slice().sort((a, b) => score(b) - score(a))[0] || null;
   };
 
   let keep = null; // keeps the utterance referenced (Chrome may drop callbacks otherwise)
-  S.speak = function (text, opt) {
-    opt = opt || {};
+  function tts(text, opt, rate) {
     return new Promise(resolve => {
-      if (!S.supported || !text) { resolve(); return; }
-      try {
-        synth.cancel();
-        const u = new SpeechSynthesisUtterance(text);
-        const v = opt.voice || S.defaultVoice();
-        if (v) u.voice = v;
-        u.lang = v ? v.lang : 'en-US';
-        const base = A.Store.state.settings.rate || 1;
-        u.rate = Math.max(0.4, Math.min(1.6, base * (opt.slow ? 0.6 : 1) * (opt.rateMul || 1)));
-        let done = false;
-        const fin = () => { if (!done) { done = true; clearTimeout(t); resolve(); } };
-        u.onend = fin;
-        u.onerror = fin;
-        const t = setTimeout(fin, 1800 + text.length * 160 / u.rate);
-        keep = u;
-        synth.speak(u);
-        if (synth.paused) synth.resume();
-      } catch (e) { resolve(); }
+      if (!S.ttsSupported) { resolve(); return; }
+      const go = () => {
+        try {
+          const u = new SpeechSynthesisUtterance(text);
+          const v = opt.voice || S.defaultVoice();
+          if (v) u.voice = v;
+          u.lang = v ? v.lang : 'en-US';
+          u.rate = rate;
+          let done = false;
+          const fin = () => { if (!done) { done = true; clearTimeout(t); resolve(); } };
+          u.onend = fin;
+          u.onerror = fin;
+          const t = setTimeout(fin, 1800 + text.length * 160 / rate);
+          keep = u;
+          synth.speak(u);
+          if (synth.paused) synth.resume();
+        } catch (e) { resolve(); }
+      };
+      // Chrome swallows the first sound if speak() follows cancel() immediately
+      if (synth.speaking || synth.pending) { synth.cancel(); setTimeout(go, 120); } else go();
     });
+  }
+
+  // ---------- Public ----------
+  S.speak = function (text, opt) {
+    if (!text) return Promise.resolve();
+    const my = ++seq;
+    stopSound();
+    return speakOne(text, opt || {}, my);
   };
+  // Several clips one after another (letter names, pairs of words); stop() cancels the rest
+  S.speakSeq = function (list, opt) {
+    const my = ++seq;
+    stopSound();
+    return playSeq(list, opt || {}, my);
+  };
+  async function playSeq(list, opt, my) {
+    for (let i = 0; i < list.length; i++) {
+      if (my !== seq) return;
+      await speakOne(list[i], opt, my);
+      if (i < list.length - 1) await new Promise(r => setTimeout(r, 220));
+    }
+  }
+
+  async function speakOne(text, opt, my) {
+    const base = settings().rate || 1;
+    const rate = Math.max(0.5, Math.min(1.6, base * (opt.slow ? 0.7 : 1) * (opt.rateMul || 1)));
+    if (S.voiceMode() !== 'tts') {
+      const want = [S.voiceMode()].concat(opt.clip ? ['shared'] : []);
+      // a pack still downloading is worth a short wait: it sounds much better than the synthesizer
+      const pending = want.filter(id => S.packLoading(id)).map(id => loading[id]);
+      if (pending.length) await Promise.race([Promise.all(pending), new Promise(r => setTimeout(r, 2500))]);
+      if (my !== seq) return;
+      const url = findClip(text, opt);
+      if (url) return playUrl(url, rate);
+      if (/^([A-Z]\.\s*){2,}$/.test(text.trim())) return playSeq(text.trim().split(/\s+/), opt, my);
+    }
+    if (my !== seq) return;
+    return tts(text, opt, rate);
+  }
 
   // High-variability listening: a different voice and a slightly different tempo each time
-  let lastVaried = null;
+  let lastVaried = '';
   S.speakVaried = function (text, opt) {
-    const pool = voices.filter(v => v !== lastVaried);
-    const v = pool.length ? pool[Math.floor(Math.random() * pool.length)] : S.defaultVoice();
-    lastVaried = v;
-    return S.speak(text, Object.assign({ voice: v, rateMul: 0.85 + Math.random() * 0.2 }, opt));
+    opt = Object.assign({}, opt, { rateMul: 0.9 + Math.random() * 0.15 });
+    if (S.voiceMode() !== 'tts' && packs.shared) {
+      const key = A.U.audioKey(text);
+      const pool = A.DATA.voices.pairs.filter(v => v !== lastVaried && packs.shared.clips['pair|' + v + '|' + key]);
+      if (pool.length) {
+        lastVaried = pool[Math.floor(Math.random() * pool.length)];
+        return S.speak(text, Object.assign(opt, { clip: 'pair|' + lastVaried + '|' + key }));
+      }
+    }
+    const good = voices.filter(v => score(v) >= 10);
+    const list = (good.length > 1 ? good : voices).filter(v => v.voiceURI !== lastVaried);
+    const v = list.length ? list[Math.floor(Math.random() * list.length)] : null;
+    if (v) lastVaried = v.voiceURI;
+    return S.speak(text, Object.assign(opt, { voice: v || undefined }));
   };
 
-  S.stop = function () { try { if (S.supported) synth.cancel(); } catch (e) { /* ignore */ } };
+  function stopSound() {
+    if (cur) { try { cur.audio.pause(); } catch (e) { /* ignore */ } cur.fin(); }
+    try { if (S.ttsSupported && (synth.speaking || synth.pending)) synth.cancel(); } catch (e) { /* ignore */ }
+  }
+  S.stop = function () { seq++; stopSound(); };
 
   // ---------- Recognition ----------
   const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1355,7 +1506,7 @@ window.A = window.A || {};
   S.micBlocked = false;
   let pausedUntil = 0;
   S.pauseMic = min => { pausedUntil = Date.now() + min * 60e3; };
-  S.canListen = () => S.recSupported && !S.micBlocked && A.Store.state.settings.mic && Date.now() > pausedUntil;
+  S.canListen = () => S.recSupported && !S.micBlocked && settings().mic && Date.now() > pausedUntil;
 
   let active = null;
   S.listen = function () {
@@ -1453,6 +1604,26 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
   D.N = chars => chars.split('').map(c => ({ ref: 'L_' + c, asName: true }));
   D.REF = (...ids) => ids.map(id => ({ refId: id }));
   D.unit = u => D.units.push(u);
+})(A.DATA);
+
+</script>
+<script>
+'use strict';
+// Recorded voices (Kokoro TTS, Apache-2.0). Audio packs are generated by tools/make_audio.py.
+(function (D) {
+  D.voices = {
+    // Learner can switch between these in the profile; each has its own audio pack
+    main: [
+      { id: 'heart', kokoro: 'af_heart', label: 'Записанный женский голос' },
+      { id: 'michael', kokoro: 'am_michael', label: 'Записанный мужской голос' }
+    ],
+    // Story characters always keep their own voices
+    story: { Anna: 'af_heart', Ben: 'am_michael', Mom: 'af_nicole', Dad: 'am_fenrir', Officer: 'am_puck', Doctor: 'af_bella' },
+    // Minimal pairs are heard in several voices (high-variability listening)
+    pairs: ['af_heart', 'am_michael', 'af_bella', 'am_puck'],
+    // Fixed phrases spoken by the interface
+    samples: ['Hello! Welcome! Let’s learn English.', 'Hello! Nice to meet you.', 'This is my speed.', 'Hello! Let’s learn English.']
+  };
 })(A.DATA);
 
 </script>
@@ -2389,7 +2560,6 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
 
   const LETTER_CONF = { b: 'dpq', d: 'bpq', p: 'qbd', q: 'pgd', n: 'umh', u: 'nvy', m: 'nw', w: 'mv', i: 'ljt', l: 'ijt', j: 'ig', g: 'qj', h: 'nk', v: 'uwy', y: 'vj', e: 'ca', a: 'eo', o: 'ac', c: 'eo', r: 'nt', t: 'lf', f: 'tl', s: 'zc', z: 'sx', x: 'zk', k: 'xh' };
   const NAME_CONF = { A: 'ERHI', B: 'VDPE', C: 'SZKE', D: 'BTEG', E: 'IAYG', F: 'SVHX', G: 'JZDE', H: 'AKEX', I: 'EYAR', J: 'GAKY', K: 'QCAJ', L: 'MNEF', M: 'NLE', N: 'MLE', O: 'UAQ', P: 'BTDE', Q: 'KUCW', R: 'AEIO', S: 'FXCZ', T: 'DPEB', U: 'YWQO', V: 'BZWE', W: 'VYUD', X: 'SKZE', Y: 'WIUE', Z: 'CGSE' };
-  const PROPER = new Set(['anna', 'tom', 'ben', 'moscow', 'russia', 'boston', 'english', 'america', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday', 'god']);
   const GRAPHEMES = ['igh', 'sh', 'ch', 'th', 'ck', 'ng', 'ee', 'ea', 'oo', 'ai', 'ay', 'oa', 'ow', 'ou', 'ar', 'or', 'er', 'ir', 'ur', 'qu'];
 
   X.nameSay = ch => ch.toUpperCase() + '.';
@@ -2421,11 +2591,7 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
   const fbOf = it => ({ en: it.en, ru: it.ru });
   const family = k => (k === 'phrase' || k === 'sent') ? ['phrase', 'sent'] : [k];
 
-  function tokenize(en) {
-    return en.replace(/[.,!?;:]/g, '').split(/\s+/).filter(Boolean)
-      .map((w, i) => (i === 0 && !PROPER.has(w.toLowerCase()) && !/^I(’|'|$)/.test(w)) ? w.toLowerCase() : w);
-  }
-  X.tokenize = tokenize;
+  const tokenize = U.tokenize;
 
   // ---------- distractors ----------
   function pool(item, ctx, test) {
@@ -2813,7 +2979,7 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     const all = U.shuffle([L.ch, ...others]);
     return choice({
       title: 'Найдите эту же букву, но маленькую', prompt: h('div', { class: 'prompt' }, h('div', { class: 'bigletter en' }, L.uc)),
-      options: all.map(c => ({ cls: 'letter-opt en', label: c })), correct: all.indexOf(L.ch), fb: { en: L.uc + ' ' + L.ch, ru: '' }, sayAfter: X.nameSay(L.ch)
+      options: all.map(c => ({ cls: 'letter-opt en', label: c })), correct: all.indexOf(L.ch), fb: { en: L.uc + ' ' + L.ch, ru: '', say: X.nameSay(L.ch) }, sayAfter: X.nameSay(L.ch)
     });
   };
 
@@ -2838,7 +3004,7 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     const say = X.nameSay(N.ch);
     return choice({
       title: 'Какую букву назвали?', prompt: h('div', { class: 'prompt' }, audioRow(say)), autoplay: say,
-      options: all.map(c => ({ cls: 'letter-opt en', label: c })), correct: all.indexOf(N.uc), fb: { en: N.uc + ' ' + N.ch, ru: '' }
+      options: all.map(c => ({ cls: 'letter-opt en', label: c })), correct: all.indexOf(N.uc), fb: { en: N.uc + ' ' + N.ch, ru: '', say }
     });
   };
 
@@ -3281,7 +3447,7 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
         U.sfx('bad');
         U.vibrate([30, 40, 30]);
         showFb('bad', 'Правильный ответ:', ex);
-        const say = (ex.fb && ex.fb.en) || ex.sayAfter;
+        const say = (ex.fb && (ex.fb.say || ex.fb.en)) || ex.sayAfter;
         setTimeout(() => { if (S && S.ex === ex) { if (ex.afterWrong) ex.afterWrong(); else if (say) Sp.speak(say); } }, 450);
         if (e.t === 'ex') requeue(e);
       }
@@ -3302,7 +3468,7 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     } else if (fb && kind === 'good' && fb.en && fb.ru) {
       body.append(h('span', { class: 'en', style: 'font-size:17px' }, fb.en), ' — ' + fb.ru);
     }
-    const replay = fb && fb.en ? X.auBtn(fb.en, { cls: 'xs fb-replay' }) : null;
+    const replay = fb && fb.en ? X.auBtn(fb.say || fb.en, { cls: 'xs fb-replay' }) : null;
     U.fill(el.fb,
       h('div', { class: 'fb-ico', html: U.icon(kind === 'good' ? 'check' : kind === 'bad' ? 'x' : 'info') }),
       h('div', { class: 'grow' }, h('div', { class: 'fb-title' }, title), body),
@@ -3412,7 +3578,7 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     const others = vs.filter(v => v !== def);
     return others.length ? others[hsh % others.length] : null;
   }
-  const sayLine = line => Sp.speak(line[1], { voice: voiceFor(line[0]) });
+  const sayLine = line => Sp.speak(line[1], { clip: 'story|' + U.audioKey(line[1]), voice: voiceFor(line[0]) });
 
   let popT;
   function gloss(word, wEl) {
@@ -3758,7 +3924,7 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     const en = it.kind === 'letter' ? it.ch : it.en;
     const ru = it.kind === 'letter' ? 'как в ' + it.key + ' — ' + it.keyRu : it.ru;
     const say = it.kind === 'letter' ? it.key : it.kind === 'pair' ? it.a.en + '. ' + it.b.en : it.en;
-    return h('button', { class: 'dict-row', type: 'button', onclick: () => Sp.speak(say) },
+    return h('button', { class: 'dict-row', type: 'button', onclick: () => (it.kind === 'pair' ? Sp.speakSeq([it.a.en, it.b.en]) : Sp.speak(say)) },
       h('span', { class: 'pic' + (U.isTextPic(pic) ? ' txt' : '') }, pic || ''),
       h('span', { style: 'min-width:0' }, h('div', { class: 'en' }, en), h('div', { class: 'ru' }, ru)),
       h('span', { class: 'strength' + (r < 0.7 ? ' weak' : ''), title: 'Прочность памяти: ' + Math.round(r * 100) + '%' },
@@ -3826,6 +3992,10 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     return h('div', { class: 'set-row' }, h('label', { class: 'grow', for: forId || null }, h('b', {}, title), sub ? h('span', {}, sub) : null), control);
   }
   const saveSetting = (k, v) => { St.state.settings[k] = v; St.save(); };
+  // The voice list on the profile screen refreshes when device voices or audio packs arrive
+  let voiceUi = null;
+  Sp.onVoices(() => { if (voiceUi) voiceUi(); });
+  Sp.onPack(() => { if (voiceUi) voiceUi(); });
 
   Scr.profile = function (main) {
     const s = St.state, st = s.stats, si = P.streakInfo();
@@ -3833,16 +4003,29 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     const acc = st.answered ? Math.round(st.correct / st.answered * 100) : 0;
     const stat = (b, t) => h('div', { class: 'stat' }, h('b', {}, String(b)), h('span', {}, t));
 
-    // voices
+    // voices: recorded ones first, then the device synthesizer
     const voiceSel = h('select', { id: 'set-voice' });
+    const voiceNote = h('span', {});
     function fillVoices() {
-      const cur = s.settings.voiceURI;
-      voiceSel.replaceChildren(h('option', { value: '' }, 'Автоматически'),
-        ...Sp.voices().map(v => h('option', { value: v.voiceURI, selected: v.voiceURI === cur }, v.name.replace(/^(Microsoft|Google)\s+/, '') + ' (' + v.lang + ')')));
+      const mode = Sp.voiceMode(), uri = s.settings.voiceURI;
+      U.fill(voiceSel,
+        h('optgroup', { label: 'Записанные голоса' }, Sp.mainVoices().map(v => h('option', { value: v.id, selected: mode === v.id }, v.label))),
+        Sp.ttsSupported ? h('optgroup', { label: 'Голос устройства' },
+          h('option', { value: 'tts:', selected: mode === 'tts' && !uri }, 'Голос устройства (автоматически)'),
+          Sp.voices().map(v => h('option', { value: 'tts:' + v.voiceURI, selected: mode === 'tts' && v.voiceURI === uri }, v.name.replace(/^(Microsoft|Google)\s+/, '') + ' (' + v.lang + ')'))) : null);
+      voiceNote.textContent = mode === 'tts' ? 'Синтезатор устройства: качество зависит от устройства'
+        : Sp.packReady(mode) ? 'Записанная озвучка, работает без интернета' : 'Озвучка загружается…';
     }
     fillVoices();
-    Sp.onVoices(fillVoices);
-    voiceSel.onchange = () => { saveSetting('voiceURI', voiceSel.value); Sp.speak('Hello! Nice to meet you.'); };
+    voiceUi = fillVoices;
+    voiceSel.onchange = async () => {
+      const v = voiceSel.value;
+      if (v.slice(0, 4) === 'tts:') { s.settings.voice = 'tts'; s.settings.voiceURI = v.slice(4); }
+      else { s.settings.voice = v; St.save(); fillVoices(); await Sp.loadPack(v); }
+      St.save();
+      fillVoices();
+      Sp.speak('Hello! Nice to meet you.');
+    };
     const rate = h('input', { type: 'range', id: 'set-rate', min: '0.6', max: '1.2', step: '0.05', value: String(s.settings.rate) });
     rate.onchange = () => { saveSetting('rate', parseFloat(rate.value)); Sp.speak('This is my speed.'); };
     const goalSel = h('select', { id: 'set-goal' }, GOALS.map(g => h('option', { value: g.xp, selected: g.xp === s.settings.goal }, g.t + ' · ' + g.xp + ' XP')));
@@ -3850,7 +4033,8 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     const themeSel = h('select', { id: 'set-theme' }, [['system', 'Как в системе'], ['light', 'Светлая'], ['dark', 'Тёмная']].map(([v, t]) => h('option', { value: v, selected: s.settings.theme === v }, t)));
     themeSel.onchange = () => { saveSetting('theme', themeSel.value); A.App.applyTheme(); };
 
-    const noVoice = Sp.supported && !Sp.hasEnglish();
+    const ttsMode = Sp.voiceMode() === 'tts';
+    const noVoice = ttsMode && Sp.ttsSupported && !Sp.hasEnglish();
     U.fill(main,
       h('h1', { class: 'h1' }, 'Профиль'),
       h('div', { class: 'stat-grid', style: 'margin-top:14px' },
@@ -3876,10 +4060,10 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
 
       h('h2', { class: 'h2 section-title' }, 'Настройки'),
       noVoice ? h('p', { class: 'notice', style: 'margin-bottom:10px' }, 'На устройстве не найден английский голос. На Android: Настройки → Специальные возможности → Синтез речи (Преобразование текста в речь) → Google → установите «English (United States)».') : null,
-      !Sp.supported ? h('p', { class: 'notice', style: 'margin-bottom:10px' }, 'Этот браузер не умеет озвучивать текст. Откройте приложение в Chrome.') : null,
+      ttsMode && !Sp.ttsSupported ? h('p', { class: 'notice', style: 'margin-bottom:10px' }, 'Этот браузер не умеет озвучивать текст сам. Выберите записанный голос.') : null,
       h('div', { class: 'settings' },
         setRow('Дневная цель', null, goalSel, 'set-goal'),
-        setRow('Голос', 'Лучше всего звучат голоса Google и «Natural»', voiceSel, 'set-voice'),
+        setRow('Голос', voiceNote, voiceSel, 'set-voice'),
         setRow('Скорость речи', null, rate, 'set-rate'),
         setRow('Проверить звук', null, h('button', { class: 'btn sm', type: 'button', onclick: () => Sp.speak('Hello! Let’s learn English.') }, 'Слушать')),
         setRow('Упражнения с микрофоном', Sp.recSupported ? 'Распознавание речи (нужен интернет)' : 'Не поддерживается этим браузером', sw('set-mic', s.settings.mic && Sp.recSupported, v => { saveSetting('mic', v); if (v) Sp.micBlocked = false; }, !Sp.recSupported), 'set-mic'),
@@ -4014,12 +4198,11 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
       const au = h('button', { class: 'au', type: 'button', 'aria-label': 'Прослушать', html: U.icon('speaker') });
       au.onclick = () => { au.classList.add('playing'); Sp.speak('Hello! Welcome! Let’s learn English.').then(() => au.classList.remove('playing')); };
       const help = h('div', { class: 'notice', hidden: true },
-        'Проверьте громкость. На Android: Настройки → Специальные возможности → Синтез речи → Google → установите английский язык. Голос можно выбрать позже в профиле.');
+        'Проверьте громкость и не выключен ли звук у вкладки браузера. Подождите пару секунд, пока загрузится озвучка, и нажмите ещё раз. Голос можно сменить позже в профиле.');
       return h('div', { class: 'onb' },
         h('h1', { class: 'h1' }, 'Проверим звук'),
         h('p', { class: 'onb-lead' }, 'Английский мы будем в основном слушать. Нажмите на кнопку и включите звук.'),
         h('div', { class: 'prompt', style: 'padding:24px 0' }, au),
-        !Sp.supported ? h('p', { class: 'notice' }, 'Этот браузер не умеет озвучивать текст. Лучше открыть приложение в Chrome.') : null,
         help,
         h('div', { class: 'onb-foot' }, dots(),
           h('button', { class: 'btn primary block', type: 'button', onclick: () => go(2) }, 'Слышу'),
@@ -4179,6 +4362,10 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
       U.$('#main').replaceChildren(U.h('p', { class: 'boot' }, 'Ошибка в учебных данных: ' + e.message));
       throw e;
     }
+    // Recorded audio: the chosen voice and the shared pack (stories, sound pairs)
+    const voice = A.Speech.voiceMode();
+    A.Speech.loadPack(voice === 'tts' ? A.Speech.mainVoices()[0].id : voice);
+    A.Speech.loadPack('shared');
     U.$$('.tab').forEach(b => {
       const ico = b.querySelector('.tab-ico');
       ico.innerHTML = U.icon(ico.dataset.icon);

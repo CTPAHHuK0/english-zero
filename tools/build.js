@@ -37,6 +37,13 @@ const artifact = standalone
   .replace(/<meta name="viewport"[^>]*>\n?/, '');
 fs.writeFileSync(path.join(root, 'dist', 'artifact.html'), artifact);
 
+// Recorded audio packs sit next to the page in audio/
+const audioSrc = path.join(root, 'audio');
+if (fs.existsSync(audioSrc)) {
+  fs.mkdirSync(path.join(root, 'dist', 'audio'), { recursive: true });
+  fs.readdirSync(audioSrc).filter(f => f.endsWith('.js')).forEach(f => fs.copyFileSync(path.join(audioSrc, f), path.join(root, 'dist', 'audio', f)));
+}
+
 const kb = f => (fs.statSync(path.join(root, 'dist', f)).size / 1024).toFixed(0) + ' KB';
 console.log('dist/english-zero.html', kb('english-zero.html'));
 console.log('dist/artifact.html', kb('artifact.html'));
