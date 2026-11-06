@@ -103,10 +103,11 @@
       U.$('#main').replaceChildren(U.h('p', { class: 'boot' }, 'Ошибка в учебных данных: ' + e.message));
       throw e;
     }
-    // Recorded audio: the chosen voice and the shared pack (stories, sound pairs)
-    const voice = A.Speech.voiceMode();
-    A.Speech.loadPack(voice === 'tts' ? A.Speech.mainVoices()[0].id : voice);
-    A.Speech.loadPack('shared');
+    // Recorded audio: the chosen voice first, the rest in the background
+    A.Speech.preload();
+    // Conversation with Claude is available only inside the claude.ai viewer
+    A.AI.onChange(s => { if (s === 'ready' && !focus && St.state.onboarded && (tab === 'home' || tab === 'profile')) App.show(tab); });
+    A.AI.detect();
     U.$$('.tab').forEach(b => {
       const ico = b.querySelector('.tab-ico');
       ico.innerHTML = U.icon(ico.dataset.icon);

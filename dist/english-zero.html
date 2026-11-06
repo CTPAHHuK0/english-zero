@@ -28,6 +28,7 @@
   --talk: #2266D3;
   --gram: #0E9466;
   --story: #B4317F;
+  --dial: #6A3FD0;
   --sel: #2266D3;
   --sel-soft: #E3ECFB;
   --good: #11804A;
@@ -52,7 +53,7 @@
   :root:not([data-theme="light"]) {
     --bg: #0C1220; --surface: #151D30; --surface-2: #1E2840; --ink: #ECF0F8; --ink-2: #9AA6C0; --line: #2A3652;
     --accent: #FFC93D; --accent-ink: #241A00; --accent-edge: #B98500; --accent-soft: #3A3112;
-    --read: #FF8447; --talk: #5C9BFF; --gram: #2FC48B; --story: #E764B2;
+    --read: #FF8447; --talk: #5C9BFF; --gram: #2FC48B; --story: #E764B2; --dial: #A485FF;
     --sel: #5C9BFF; --sel-soft: #1C2D52;
     --good: #45D48B; --good-bg: #10301F; --bad: #FF7676; --bad-bg: #3B1A20;
     --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 18px rgba(0, 0, 0, .25);
@@ -63,7 +64,7 @@
 :root[data-theme="dark"] {
   --bg: #0C1220; --surface: #151D30; --surface-2: #1E2840; --ink: #ECF0F8; --ink-2: #9AA6C0; --line: #2A3652;
   --accent: #FFC93D; --accent-ink: #241A00; --accent-edge: #B98500; --accent-soft: #3A3112;
-  --read: #FF8447; --talk: #5C9BFF; --gram: #2FC48B; --story: #E764B2;
+  --read: #FF8447; --talk: #5C9BFF; --gram: #2FC48B; --story: #E764B2; --dial: #A485FF;
   --sel: #5C9BFF; --sel-soft: #1C2D52;
   --good: #45D48B; --good-bg: #10301F; --bad: #FF7676; --bad-bg: #3B1A20;
   --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 6px 18px rgba(0, 0, 0, .25);
@@ -391,7 +392,7 @@ p { margin: 0; }
   animation: rise .22s ease-out;
 }
 .sheet-grip { width: 44px; height: 5px; border-radius: 3px; background: var(--line); margin: -8px auto 14px; }
-@keyframes rise { from { transform: translateY(40px); opacity: .4; } }
+@keyframes rise { from { transform: translateY(40px); } }
 @keyframes fade { from { opacity: 0; } }
 .sheet-head { display: flex; gap: 14px; align-items: center; margin-bottom: 14px; }
 .lesson-list { display: flex; flex-direction: column; gap: 8px; margin: 14px 0 18px; }
@@ -839,6 +840,29 @@ textarea.backup { width: 100%; min-height: 110px; padding: 10px; border: 1.5px s
   *, *::before, *::after { animation: none !important; transition: none !important; }
 }
 
+/* ---------- Mute mode, explanations, dialogues, AI chat, transfer ---------- */
+.mute-chip { border: 0; border-radius: 999px; padding: 5px 10px; background: var(--surface-2); color: var(--ink-2); font-size: 12px; font-weight: 600; white-space: nowrap; }
+.fb-why { margin-top: 6px; font-size: 14px; line-height: 1.4; color: var(--ink); }
+.fb-why .en, .fb-why b { font-size: inherit; font-weight: 700; }
+.bubble.masked .line-en { filter: blur(7px); user-select: none; }
+.bubble.masked .line-tools .btn { display: none; }
+.story-cover.dial { box-shadow: inset 6px 0 0 var(--dial); }
+.reply-box { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: var(--r-m); background: var(--surface); border: 2px dashed var(--dial); animation: rise .2s ease-out; }
+.opt.reply-opt { font-size: 18px; text-align: left; padding: 12px 14px; }
+.ai-chat { padding-bottom: 8px; }
+.ai-note { align-self: stretch; padding: 10px 12px; border-radius: 12px; font-size: 14px; background: var(--surface-2); color: var(--ink-2); }
+.ai-note.fix { background: var(--accent-soft); color: var(--ink); border: 1.5px solid var(--accent-edge); }
+.ai-note.err { background: var(--bad-bg); color: var(--bad); }
+.ai-note.typing { font-style: italic; }
+.ai-chips { margin-bottom: 4px; }
+.ai-chips .chip { font-size: 15px; text-align: left; }
+#ai-input { flex: 1; min-width: 0; }
+.ai-card { width: 100%; border: 0; text-align: left; font: inherit; color: inherit; }
+.transfer-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.qr-frame { padding: 10px; border-radius: 12px; background: #ffffff; }
+.qr-img { display: block; width: min(76vw, 340px); max-width: 100%; height: auto; image-rendering: pixelated; }
+.qr-video { width: 100%; max-width: 420px; aspect-ratio: 3 / 4; object-fit: cover; border-radius: 12px; background: #000000; }
+
 </style>
 </head>
 <body>
@@ -1147,7 +1171,7 @@ window.A = window.A || {};
       items: {},             // item id -> FSRS card
       stats: {
         xp: 0, days: {}, streak: 0, best: 0, last: '', freezes: 0,
-        answered: 0, correct: 0, reviews: 0, spoken: 0, stories: 0, perfect: 0, seconds: 0
+        answered: 0, correct: 0, reviews: 0, spoken: 0, stories: 0, dialogs: 0, aiMessages: 0, perfect: 0, seconds: 0
       },
       badges: {}
     };
@@ -1282,9 +1306,11 @@ window.A = window.A || {};
 </script>
 <script>
 'use strict';
-// Speech output and recognition.
+// Speech output, recording and recognition.
 // Output prefers recorded neural-voice clips (audio packs from tools/make_audio.py) and falls back to the
 // device's speech synthesizer (speechSynthesis) for anything not recorded, or when the learner picks it.
+// Packs per voice: <voice> (zones 1–3), <voice>-more (zones 4–5 and grammar patterns), <voice>-slow (slow versions);
+// shared and shared-more hold story/dialogue lines and minimal pairs in character voices.
 (function (A) {
   const S = A.Speech = {};
   const synth = window.speechSynthesis;
@@ -1292,6 +1318,15 @@ window.A = window.A || {};
   const settings = () => A.Store.state.settings;
   S.supported = true; // recorded audio works everywhere; ttsSupported tells about the synthesizer
   S.ttsSupported = !!synth && typeof window.SpeechSynthesisUtterance !== 'undefined';
+
+  // ---------- "Can't listen now" mode ----------
+  let mutedUntil = 0;
+  const muteListeners = [];
+  S.onMute = fn => muteListeners.push(fn);
+  S.muted = () => Date.now() < mutedUntil;
+  S.mute = min => { mutedUntil = Date.now() + min * 60e3; S.stop(); muteListeners.forEach(fn => fn(true)); };
+  S.unmute = () => { mutedUntil = 0; muteListeners.forEach(fn => fn(false)); };
+  S.mutedMinutes = () => Math.max(0, Math.ceil((mutedUntil - Date.now()) / 60e3));
 
   // ---------- Recorded audio packs ----------
   const packs = {};      // id -> { type, clips: { key: base64 } }
@@ -1304,8 +1339,8 @@ window.A = window.A || {};
   };
   S.onPack = fn => packListeners.push(fn);
   S.packReady = id => !!packs[id];
-  S.hasClip = (text, id) => { const p = packs[id || S.voiceMode()]; return !!p && !!p.clips[A.U.audioKey(text)]; };
   S.packLoading = id => !!loading[id] && !packs[id];
+  S.hasClip = (text, id) => { const p = packs[id || S.voiceMode()]; return !!p && !!p.clips[A.U.audioKey(text)]; };
 
   function viaScript(src) {
     return new Promise((resolve, reject) => {
@@ -1338,6 +1373,15 @@ window.A = window.A || {};
     const v = settings().voice;
     return v === 'tts' || S.mainVoices().some(m => m.id === v) ? v : S.mainVoices()[0].id;
   };
+  // Core pack first; the rest arrives in the background
+  S.preload = function () {
+    const mode = S.voiceMode();
+    const v = mode === 'tts' ? S.mainVoices()[0].id : mode;
+    S.loadPack(v);
+    S.loadPack('shared');
+    setTimeout(() => { S.loadPack(v + '-more'); S.loadPack('shared-more'); }, 2000);
+    setTimeout(() => S.loadPack(v + '-slow'), 6000);
+  };
 
   function clipUrl(packId, key) {
     const p = packs[packId];
@@ -1351,14 +1395,27 @@ window.A = window.A || {};
     }
     return urls[id];
   }
+  function mainOrder() {
+    const mode = S.voiceMode();
+    const ids = [mode].concat(S.mainVoices().map(v => v.id).filter(id => id !== mode));
+    return [].concat(...ids.map(id => [id, id + '-more']));
+  }
   // Recorded clip for a text: the chosen voice first, then the other recorded voice
   function findClip(text, opt) {
-    if (opt.clip) { const u = clipUrl('shared', opt.clip); if (u) return u; }
+    if (opt.clip) for (const id of ['shared', 'shared-more']) { const u = clipUrl(id, opt.clip); if (u) return { url: u }; }
     const key = A.U.audioKey(text);
-    const mode = S.voiceMode();
-    const order = [mode].concat(S.mainVoices().map(v => v.id).filter(id => id !== mode));
-    for (const id of order) { const u = clipUrl(id, key); if (u) return u; }
+    if (opt.slow) {
+      const u = clipUrl(S.voiceMode() + '-slow', key);
+      if (u) return { url: u, native: true };
+      S.loadPack(S.voiceMode() + '-slow');
+    }
+    for (const id of mainOrder()) { const u = clipUrl(id, key); if (u) return { url: u }; }
     return null;
+  }
+  function relevantLoading(opt) {
+    const mode = S.voiceMode();
+    const ids = [mode, mode + '-more'].concat(opt.clip ? ['shared', 'shared-more'] : []);
+    return ids.filter(id => S.packLoading(id)).map(id => loading[id]);
   }
 
   let cur = null;      // { audio, fin }
@@ -1439,13 +1496,14 @@ window.A = window.A || {};
 
   // ---------- Public ----------
   S.speak = function (text, opt) {
-    if (!text) return Promise.resolve();
+    if (!text || S.muted()) return Promise.resolve();
     const my = ++seq;
     stopSound();
     return speakOne(text, opt || {}, my);
   };
   // Several clips one after another (letter names, pairs of words); stop() cancels the rest
   S.speakSeq = function (list, opt) {
+    if (S.muted()) return Promise.resolve();
     const my = ++seq;
     stopSound();
     return playSeq(list, opt || {}, my);
@@ -1460,19 +1518,21 @@ window.A = window.A || {};
 
   async function speakOne(text, opt, my) {
     const base = settings().rate || 1;
-    const rate = Math.max(0.5, Math.min(1.6, base * (opt.slow ? 0.7 : 1) * (opt.rateMul || 1)));
+    const rate = slow => Math.max(0.5, Math.min(1.6, base * (slow ? 0.7 : 1) * (opt.rateMul || 1)));
     if (S.voiceMode() !== 'tts') {
-      const want = [S.voiceMode()].concat(opt.clip ? ['shared'] : []);
-      // a pack still downloading is worth a short wait: it sounds much better than the synthesizer
-      const pending = want.filter(id => S.packLoading(id)).map(id => loading[id]);
-      if (pending.length) await Promise.race([Promise.all(pending), new Promise(r => setTimeout(r, 2500))]);
-      if (my !== seq) return;
-      const url = findClip(text, opt);
-      if (url) return playUrl(url, rate);
+      let found = findClip(text, opt);
+      if (!found) {
+        // a pack still downloading is worth a short wait: it sounds much better than the synthesizer
+        const pending = relevantLoading(opt);
+        if (pending.length) await Promise.race([Promise.all(pending), new Promise(r => setTimeout(r, 2500))]);
+        if (my !== seq) return;
+        found = findClip(text, opt);
+      }
+      if (found) return playUrl(found.url, rate(opt.slow && !found.native));
       if (/^([A-Z]\.\s*){2,}$/.test(text.trim())) return playSeq(text.trim().split(/\s+/), opt, my);
     }
     if (my !== seq) return;
-    return tts(text, opt, rate);
+    return tts(text, opt, rate(opt.slow));
   }
 
   // High-variability listening: a different voice and a slightly different tempo each time
@@ -1494,19 +1554,57 @@ window.A = window.A || {};
     return S.speak(text, Object.assign(opt, { voice: v || undefined }));
   };
 
+  // The learner's own recording
+  S.playRecording = function (url) {
+    const my = ++seq;
+    stopSound();
+    return my === seq ? playUrl(url, 1) : Promise.resolve();
+  };
+
   function stopSound() {
     if (cur) { try { cur.audio.pause(); } catch (e) { /* ignore */ } cur.fin(); }
     try { if (S.ttsSupported && (synth.speaking || synth.pending)) synth.cancel(); } catch (e) { /* ignore */ }
   }
   S.stop = function () { seq++; stopSound(); };
 
-  // ---------- Recognition ----------
+  // ---------- Microphone: recognition and recording ----------
   const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
-  S.recSupported = !!Rec;
+  // Embedded pages (the claude.ai viewer) get no microphone at all
+  S.framed = (() => { try { return window.top !== window.self; } catch (e) { return true; } })();
+  S.recSupported = !!Rec && !S.framed;
   S.micBlocked = false;
+  S.recBlocked = S.framed;
   let pausedUntil = 0;
   S.pauseMic = min => { pausedUntil = Date.now() + min * 60e3; };
-  S.canListen = () => S.recSupported && !S.micBlocked && settings().mic && Date.now() > pausedUntil;
+  S.canListen = () => S.recSupported && !S.micBlocked && settings().mic && Date.now() > pausedUntil && !S.muted();
+  S.canRecord = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder) &&
+    settings().mic && !S.recBlocked && Date.now() > pausedUntil && !S.muted();
+
+  let recorder = null;
+  S.record = function (maxMs) {
+    return new Promise(resolve => {
+      navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+        let rec;
+        try { rec = new MediaRecorder(stream); } catch (e) { stream.getTracks().forEach(t => t.stop()); resolve({ error: 'recorder' }); return; }
+        const chunks = [];
+        recorder = rec;
+        const t = setTimeout(() => { try { rec.stop(); } catch (e) { /* ignore */ } }, maxMs || 6000);
+        rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+        rec.onstop = () => {
+          clearTimeout(t);
+          stream.getTracks().forEach(tr => tr.stop());
+          recorder = null;
+          const blob = new Blob(chunks, { type: rec.mimeType || 'audio/webm' });
+          resolve(blob.size ? { url: URL.createObjectURL(blob) } : { error: 'empty' });
+        };
+        rec.start();
+      }).catch(e => {
+        if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError' || e.name === 'NotFoundError')) S.recBlocked = true;
+        resolve({ error: (e && e.name) || 'error' });
+      });
+    });
+  };
+  S.stopRecording = () => { if (recorder && recorder.state === 'recording') try { recorder.stop(); } catch (e) { /* ignore */ } };
 
   let active = null;
   S.listen = function () {
@@ -1623,6 +1721,289 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     pairs: ['af_heart', 'am_michael', 'af_bella', 'am_puck'],
     // Fixed phrases spoken by the interface
     samples: ['Hello! Welcome! Let’s learn English.', 'Hello! Nice to meet you.', 'This is my speed.', 'Hello! Let’s learn English.']
+  };
+})(A.DATA);
+
+</script>
+<script>
+'use strict';
+// Grammar patterns: one rule, many sentences. Each time a pattern is practised it produces a new
+// sentence (subject × phrase), so the learner trains the rule rather than memorising one sentence.
+// Also: short explanations for wrong answers (D.why).
+(function (D) {
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  // person: 1s I, 2s you, 3s he/she/it, 1p we, 3p they; gender for Russian past tense: m, f, p (plural), x (я/ты — «был(а)»)
+  const S = {
+    I: { en: 'I', ru: 'я', p: '1s', g: 'x' },
+    you: { en: 'you', ru: 'ты', p: '2s', g: 'x' },
+    he: { en: 'he', ru: 'он', p: '3s', g: 'm' },
+    she: { en: 'she', ru: 'она', p: '3s', g: 'f' },
+    we: { en: 'we', ru: 'мы', p: '1p', g: 'p' },
+    they: { en: 'they', ru: 'они', p: '3p', g: 'p' },
+    anna: { en: 'Anna', ru: 'Анна', p: '3s', g: 'f' },
+    ben: { en: 'Ben', ru: 'Бен', p: '3s', g: 'm' },
+    mom: { en: 'my mom', ru: 'моя мама', p: '3s', g: 'f' }
+  };
+  const be = s => s.p === '1s' ? 'am' : s.p === '3s' ? 'is' : 'are';
+  const was = s => (s.p === '1s' || s.p === '3s') ? 'was' : 'were';
+  const third = s => s.p === '3s';
+  const enSubj = (s, first) => first ? cap(s.en) : s.en;
+  // Russian past tense by gender: past(['работал', 'работала', 'работали'], s)
+  const past = (f, s) => s.g === 'm' ? f[0] : s.g === 'f' ? f[1] : s.g === 'p' ? f[2] : f[0] + '(а)';
+  // Russian present/future by person: pres({1s, 2s, 3s, 1p, 3p}, s)
+  const pres = (f, s) => f[s.p];
+  const all = list => list;
+
+  const pats = {};
+  const PAT = (key, o) => {
+    const variants = o.build();
+    const item = {
+      id: 'pat:' + key, kind: 'pat', en: o.title, ru: o.ru, rule: o.rule,
+      variants,
+      gen() { return variants[Math.floor(Math.random() * variants.length)]; }
+    };
+    pats[key] = item;
+    return item;
+  };
+  // A sentence with [gap]: returns the same shape as D.S() items
+  const sent = (raw, ru, alts) => {
+    const m = raw.match(/\[([^\]]+)\]/);
+    return { en: raw.replace(/[[\]]/g, ''), ru, gap: m[1], gapAt: raw.indexOf('['), alts };
+  };
+
+  PAT('be', {
+    title: 'am · is · are', ru: 'глагол «быть» в настоящем времени',
+    rule: '<b>I am</b> · <b>he / she / it is</b> · <b>you / we / they are</b>. В русском глагол пропускают («Я дома»), в английском — никогда: I <b>am</b> at home.',
+    build: () => {
+      const places = [['at home', 'дома'], ['at work', 'на работе'], ['in New York', 'в Нью-Йорке'], ['from Russia', 'из России'], ['here', 'здесь'], ['in the park', 'в парке']];
+      const out = [];
+      [S.I, S.you, S.he, S.she, S.we, S.they, S.anna, S.mom].forEach(s => places.forEach(([en, ru]) => {
+        const v = be(s);
+        out.push(sent(`${enSubj(s, true)} [${v}] ${en}.`, `${cap(s.ru)} ${ru}.`, ['am', 'is', 'are'].filter(x => x !== v)));
+      }));
+      return out;
+    }
+  });
+
+  PAT('ps', {
+    title: 'I work · she works', ru: 'Present Simple: то, что бывает регулярно',
+    rule: 'С <b>I, you, we, they</b> глагол без окончания: I <b>work</b>. С <b>he, she, it</b> и одним человеком — с <b>-s</b>: Anna <b>works</b>.',
+    build: () => {
+      const verbs = [
+        ['work', 'works', 'every day', { '1s': 'работаю', '2s': 'работаешь', '3s': 'работает', '1p': 'работаем', '3p': 'работают' }, 'каждый день'],
+        ['live', 'lives', 'in New York', { '1s': 'живу', '2s': 'живёшь', '3s': 'живёт', '1p': 'живём', '3p': 'живут' }, 'в Нью-Йорке'],
+        ['drink', 'drinks', 'coffee every morning', { '1s': 'пью', '2s': 'пьёшь', '3s': 'пьёт', '1p': 'пьём', '3p': 'пьют' }, 'кофе каждое утро'],
+        ['watch', 'watches', 'movies on Friday', { '1s': 'смотрю', '2s': 'смотришь', '3s': 'смотрит', '1p': 'смотрим', '3p': 'смотрят' }, 'фильмы по пятницам'],
+        ['play', 'plays', 'video games', { '1s': 'играю', '2s': 'играешь', '3s': 'играет', '1p': 'играем', '3p': 'играют' }, 'в видеоигры']
+      ];
+      const out = [];
+      [S.I, S.you, S.he, S.she, S.we, S.they, S.anna, S.ben].forEach(s => verbs.forEach(([b, s3, rest, ru, ruRest]) => {
+        const v = third(s) ? s3 : b;
+        out.push(sent(`${enSubj(s, true)} [${v}] ${rest}.`, `${cap(s.ru)} ${pres(ru, s)} ${ruRest}.`, [third(s) ? b : s3, b + 'ing']));
+      }));
+      return out;
+    }
+  });
+
+  PAT('q', {
+    title: 'Do you…? Does she…?', ru: 'вопросы в Present Simple',
+    rule: 'Вопрос начинается с <b>Do</b> (I, you, we, they) или <b>Does</b> (he, she, it). После does у глагола уже нет -s: <b>Does</b> she <b>like</b>…?',
+    build: () => {
+      const verbs = [
+        ['like coffee', { '2s': 'любишь', '3s': 'любит', '3p': 'любят' }, 'кофе'],
+        ['speak English', { '2s': 'говоришь', '3s': 'говорит', '3p': 'говорят' }, 'по-английски'],
+        ['work here', { '2s': 'работаешь', '3s': 'работает', '3p': 'работают' }, 'здесь'],
+        ['live in Boston', { '2s': 'живёшь', '3s': 'живёт', '3p': 'живут' }, 'в Бостоне']
+      ];
+      const out = [];
+      [S.you, S.he, S.she, S.they, S.anna, S.ben].forEach(s => verbs.forEach(([rest, ru, ruRest]) => {
+        const aux = third(s) ? 'Does' : 'Do';
+        out.push(sent(`[${aux}] ${s.en} ${rest}?`, `${cap(s.ru)} ${pres(ru, s)} ${ruRest}?`, third(s) ? ['Do', 'Is'] : ['Does', 'Are']));
+      }));
+      return out;
+    }
+  });
+
+  PAT('was', {
+    title: 'was · were', ru: 'глагол «быть» в прошлом',
+    rule: '<b>I / he / she / it was</b> · <b>you / we / they were</b>. Это прошлое от am / is / are.',
+    build: () => {
+      const places = [['at home', 'дома'], ['at work', 'на работе'], ['in the park', 'в парке'], ['in Boston', 'в Бостоне']];
+      const out = [];
+      [S.I, S.you, S.he, S.she, S.we, S.they, S.anna, S.ben].forEach(s => places.forEach(([en, ru]) => {
+        const v = was(s);
+        out.push(sent(`${enSubj(s, true)} [${v}] ${en} yesterday.`, `Вчера ${s.ru} ${past(['был', 'была', 'были'], s)} ${ru}.`, v === 'was' ? ['were', 'is'] : ['was', 'are']));
+      }));
+      return out;
+    }
+  });
+
+  PAT('ed', {
+    title: 'worked, played', ru: 'прошедшее время правильных глаголов',
+    rule: 'К глаголу добавляют <b>-ed</b>: work → <b>worked</b>. Форма одна для всех: I worked, she worked.',
+    build: () => {
+      const verbs = [
+        ['worked', 'work', 'late', ['работал', 'работала', 'работали'], 'допоздна'],
+        ['watched', 'watch', 'a movie', ['смотрел', 'смотрела', 'смотрели'], 'фильм'],
+        ['cooked', 'cook', 'dinner', ['готовил', 'готовила', 'готовили'], 'ужин'],
+        ['called', 'call', 'mom', ['звонил', 'звонила', 'звонили'], 'маме']
+      ];
+      const out = [];
+      [S.I, S.you, S.he, S.she, S.we, S.they, S.anna, S.ben].forEach(s => verbs.forEach(([ed, b, rest, ru, ruRest]) => {
+        out.push(sent(`${enSubj(s, true)} [${ed}] ${rest} yesterday.`, `Вчера ${s.ru} ${past(ru, s)} ${ruRest}.`, [b, b + 's']));
+      }));
+      return out;
+    }
+  });
+
+  PAT('irr', {
+    title: 'went, saw, ate', ru: 'неправильные глаголы в прошлом',
+    rule: 'У частых глаголов прошлое особое: go → <b>went</b>, see → <b>saw</b>, eat → <b>ate</b>, buy → <b>bought</b>, drink → <b>drank</b>. Формы «goed» нет.',
+    build: () => {
+      const verbs = [
+        ['went', 'go', 'goed', 'to the park', ['ходил', 'ходила', 'ходили'], 'в парк'],
+        ['saw', 'see', 'seed', 'Tom', ['видел', 'видела', 'видели'], 'Тома'],
+        ['ate', 'eat', 'eated', 'pizza', ['ел', 'ела', 'ели'], 'пиццу'],
+        ['bought', 'buy', 'buyed', 'a coat', ['купил', 'купила', 'купили'], 'пальто'],
+        ['drank', 'drink', 'drinked', 'tea', ['пил', 'пила', 'пили'], 'чай']
+      ];
+      const out = [];
+      [S.I, S.you, S.he, S.she, S.we, S.they, S.anna, S.ben].forEach(s => verbs.forEach(([p, b, wrong, rest, ru, ruRest]) => {
+        out.push(sent(`${enSubj(s, true)} [${p}] ${rest} yesterday.`, `Вчера ${s.ru} ${past(ru, s)} ${ruRest}.`, [b, wrong]));
+      }));
+      return out;
+    }
+  });
+
+  PAT('did', {
+    title: 'Did you…? I didn’t…', ru: 'вопросы и отрицания в прошлом',
+    rule: 'Вопрос: <b>Did</b> you see…? Отрицание: I <b>didn’t</b> see… После did глагол в обычной форме: did you <b>see</b>, а не saw.',
+    build: () => {
+      const verbs = [
+        ['see Tom', ['видел', 'видела', 'видели'], 'Тома'],
+        ['call mom', ['звонил', 'звонила', 'звонили'], 'маме'],
+        ['watch the movie', ['смотрел', 'смотрела', 'смотрели'], 'фильм'],
+        ['eat breakfast', ['завтракал', 'завтракала', 'завтракали'], '']
+      ];
+      const out = [];
+      [S.you, S.he, S.she, S.they, S.anna, S.ben].forEach(s => verbs.forEach(([rest, ru, ruRest]) => {
+        out.push(sent(`[Did] ${s.en} ${rest} yesterday?`, `${cap(s.ru)} ${past(ru, s)}${ruRest ? ' ' + ruRest : ''} вчера?`, ['Do', 'Was']));
+      }));
+      [S.I, S.you, S.he, S.she, S.we, S.they, S.anna, S.ben].forEach(s => verbs.forEach(([rest, ru, ruRest]) => {
+        out.push(sent(`${enSubj(s, true)} [didn’t] ${rest}.`, `${cap(s.ru)} не ${past(ru, s)}${ruRest ? ' ' + ruRest : ''}.`, ['don’t', 'wasn’t']));
+      }));
+      return out;
+    }
+  });
+
+  PAT('going', {
+    title: 'I’m going to…', ru: 'планы: собираюсь сделать',
+    rule: '<b>am / is / are + going to</b> + глагол: I <b>am going to</b> call mom — я собираюсь позвонить маме.',
+    build: () => {
+      const verbs = [['call mom', 'позвонить маме'], ['cook dinner', 'приготовить ужин'], ['watch a movie', 'посмотреть фильм'], ['buy a coat', 'купить пальто'], ['visit Boston', 'съездить в Бостон']];
+      const ru = { '1s': 'собираюсь', '2s': 'собираешься', '3s': 'собирается', '1p': 'собираемся', '3p': 'собираются' };
+      const out = [];
+      [S.I, S.you, S.he, S.she, S.we, S.they, S.anna, S.ben].forEach(s => verbs.forEach(([rest, ruRest]) => {
+        const v = be(s);
+        out.push(sent(`${enSubj(s, true)} [${v}] going to ${rest}.`, `${cap(s.ru)} ${ru[s.p]} ${ruRest}.`, ['am', 'is', 'are'].filter(x => x !== v)));
+      }));
+      return out;
+    }
+  });
+
+  PAT('will', {
+    title: 'will · won’t', ru: 'будущее: обещания и решения',
+    rule: '<b>will</b> + глагол — «сделаю»: I <b>will</b> call you. <b>won’t</b> (will not) — «не сделаю»: I <b>won’t</b> be late. Форма одна для всех.',
+    build: () => {
+      const verbs = [
+        [true, 'call mom tomorrow', { '1s': 'позвоню', '2s': 'позвонишь', '3s': 'позвонит', '1p': 'позвоним', '3p': 'позвонят' }, 'маме завтра'],
+        [true, 'come tomorrow', { '1s': 'приду', '2s': 'придёшь', '3s': 'придёт', '1p': 'придём', '3p': 'придут' }, 'завтра'],
+        [false, 'be late', { '1s': 'опоздаю', '2s': 'опоздаешь', '3s': 'опоздает', '1p': 'опоздаем', '3p': 'опоздают' }, ''],
+        [false, 'forget', { '1s': 'забуду', '2s': 'забудешь', '3s': 'забудет', '1p': 'забудем', '3p': 'забудут' }, '']
+      ];
+      const out = [];
+      [S.I, S.you, S.he, S.she, S.we, S.they, S.anna, S.ben].forEach(s => verbs.forEach(([pos, rest, ru, ruRest]) => {
+        const w = pos ? 'will' : 'won’t';
+        const ruText = `${cap(s.ru)} ${pos ? '' : 'не '}${pres(ru, s)}${ruRest ? ' ' + ruRest : ''}.`;
+        out.push(sent(`${enSubj(s, true)} [${w}] ${rest}.`, ruText, pos ? ['won’t', 'is'] : ['will', 'don’t']));
+      }));
+      return out;
+    }
+  });
+
+  PAT('cmp', {
+    title: 'bigger than', ru: 'сравнение: больше, лучше, дороже',
+    rule: 'Короткие слова: <b>-er + than</b> (big → bigger than). Длинные: <b>more</b> expensive. Исключения: good → <b>better</b>, bad → <b>worse</b>.',
+    build: () => all([
+      sent('New York is [bigger] than Boston.', 'Нью-Йорк больше Бостона.', ['big', 'more big']),
+      sent('Moscow is [colder] than New York.', 'В Москве холоднее, чем в Нью-Йорке.', ['cold', 'more cold']),
+      sent('Ben is [older] than Anna.', 'Бен старше Анны.', ['old', 'more old']),
+      sent('My bag is [smaller] than your bag.', 'Моя сумка меньше твоей.', ['small', 'more small']),
+      sent('This movie is [better] than that movie.', 'Этот фильм лучше того.', ['good', 'gooder']),
+      sent('Pizza is [more] expensive than salad.', 'Пицца дороже салата.', ['most', 'much']),
+      sent('The subway is [faster] than the bus.', 'Метро быстрее автобуса.', ['fast', 'more fast']),
+      sent('Today is [hotter] than yesterday.', 'Сегодня жарче, чем вчера.', ['hot', 'more hot']),
+      sent('My English is [better] now.', 'Мой английский теперь лучше.', ['good', 'more good']),
+      sent('This hotel is [worse] than that hotel.', 'Этот отель хуже того.', ['bad', 'badder']),
+      sent('A taxi is [more] expensive than the subway.', 'Такси дороже метро.', ['most', 'very'])
+    ])
+  });
+
+  D.pats = pats;
+
+  // Short explanations shown when a wrong word is chosen
+  D.why = {
+    am: '<b>am</b> — только с I: I am.',
+    is: '<b>is</b> — с he, she, it и с одним человеком или предметом: she is, the coffee is.',
+    are: '<b>are</b> — с you, we, they и с несколькими: they are, Anna and Ben are.',
+    was: '<b>was</b> — прошлое от am и is: I was, she was.',
+    were: '<b>were</b> — прошлое от are: you were, they were.',
+    a: '<b>a</b> — «один, какой-то», перед согласным звуком: a cat, a taxi.',
+    an: '<b>an</b> — то же, что a, но перед гласным звуком: an apple, an idea.',
+    the: '<b>the</b> — «тот самый», когда понятно, о чём речь: open the door.',
+    this: '<b>this</b> — «вот это», то, что рядом.',
+    that: '<b>that</b> — «вон то», то, что далеко.',
+    like: '<b>like</b> — нравится, люблю.',
+    want: '<b>want</b> — хочу.',
+    can: '<b>can</b> — могу, умею. После can глагол без to: I can swim.',
+    'can’t': '<b>can’t</b> — не могу, не умею.',
+    to: '<b>to</b> ставится после want и going: I want to eat, I’m going to call.',
+    do: '<b>do</b> — вспомогательное слово для вопросов с I, you, we, they.',
+    does: '<b>does</b> — для вопросов с he, she, it. После него у глагола нет -s.',
+    did: '<b>did</b> — для вопросов в прошлом с любым лицом: Did you…? Did she…?',
+    'don’t': '<b>don’t</b> — «не» в настоящем с I, you, we, they: I don’t like.',
+    'doesn’t': '<b>doesn’t</b> — «не» в настоящем с he, she, it: he doesn’t work.',
+    'didn’t': '<b>didn’t</b> — «не» в прошлом с любым лицом: I didn’t see.',
+    'isn’t': '<b>isn’t</b> — «не является» (is not). С обычными глаголами действия нужен don’t / doesn’t.',
+    'wasn’t': '<b>wasn’t</b> — «не был» (was not). С глаголами действия в прошлом нужен didn’t.',
+    'weren’t': '<b>weren’t</b> — «не были» (were not).',
+    'am not': '<b>am not</b> — «я не являюсь». Для будущего «не сделаю» нужен won’t.',
+    will: '<b>will</b> — «сделаю» в будущем: I will call.',
+    'won’t': '<b>won’t</b> — «не сделаю» в будущем (will not).',
+    going: '<b>going to</b> — «собираюсь»: I’m going to call.',
+    go: '<b>go</b> — «идти» в обычной форме.',
+    for: '<b>for</b> — «для». После going нужен to.',
+    at: '<b>at</b> — «в, у» (место или время). После going нужен to.',
+    where: '<b>where</b> — где.', what: '<b>what</b> — что.', when: '<b>when</b> — когда.', who: '<b>who</b> — кто.', why: '<b>why</b> — почему.', how: '<b>how</b> — как.',
+    english: '<b>English</b> — английский язык.', england: '<b>England</b> — Англия (страна).', russia: '<b>Russia</b> — Россия (страна).',
+    seven: '<b>seven</b> — семь.', seventh: '<b>seventh</b> — седьмой.', seventy: '<b>seventy</b> — семьдесят.',
+    more: '<b>more</b> ставится перед длинными словами: more expensive. Короткие получают -er: bigger.',
+    most: '<b>most</b> — «самый» (самый дорогой). Для сравнения двух вещей нужно more.',
+    much: '<b>much</b> — «много». Для сравнения нужно more.',
+    very: '<b>very</b> — «очень». Для сравнения нужно more.',
+    than: '<b>than</b> — «чем».',
+    gooder: 'Такого слова нет: good → <b>better</b>.',
+    badder: 'Такого слова нет: bad → <b>worse</b>.',
+    better: '<b>better</b> — лучше (от good).', worse: '<b>worse</b> — хуже (от bad).',
+    good: '<b>good</b> — хороший. Для сравнения нужно better.', bad: '<b>bad</b> — плохой. Для сравнения нужно worse.',
+    went: '<b>went</b> — прошедшее время от go.', saw: '<b>saw</b> — прошедшее время от see.', ate: '<b>ate</b> — прошедшее время от eat.',
+    bought: '<b>bought</b> — прошедшее время от buy.', drank: '<b>drank</b> — прошедшее время от drink.',
+    goed: 'Такой формы нет: у go прошедшее время — <b>went</b>.', seed: 'Такой формы нет: у see прошедшее время — <b>saw</b>.',
+    eated: 'Такой формы нет: у eat прошедшее время — <b>ate</b>.', buyed: 'Такой формы нет: у buy прошедшее время — <b>bought</b>.',
+    drinked: 'Такой формы нет: у drink прошедшее время — <b>drank</b>.',
+    see: '<b>see</b> — «видеть», обычная форма (после did, will, can).', eat: '<b>eat</b> — «есть», обычная форма (после did, will, can).',
+    buy: '<b>buy</b> — «покупать», обычная форма.', drink: '<b>drink</b> — «пить», обычная форма.',
+    help: '<b>help</b> — обычная форма: после will, can, did глагол без окончаний.', call: '<b>call</b> — обычная форма: после will, can, did глагол без окончаний.'
   };
 })(A.DATA);
 
@@ -1781,7 +2162,7 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
       { t: 'bed и bad — разные слова', x: 'В английском различаются <b>e</b> (как «э») и <b>a</b> (рот шире, почти «а»). Для русского уха они похожи — тренируем слух.' }
     ],
     lessons: [
-      { title: 'e, u', items: [...LT('e', 'u'), W('pen|ручка|🖊️'), W('ten|десять|🔟'), W('sun|солнце|☀️'), W('cup|чашка|☕'), W('nut|орех|🥜')] },
+      { title: 'e, u', items: [...LT('e', 'u'), W('pen|ручка|🖊️'), W('ten|десять|🔟'), W('sun|солнце|☀️'), W('cup|чашка, стакан|🥤'), W('nut|орех|🥜')] },
       { title: 'r, h', items: [...LT('r', 'h'), W('red|красный|🔴'), W('run|бежать|🏃'), W('hat|шляпа|🎩'), W('hen|курица|🐔'), W('hug|обнимать|🤗')] },
       { title: 'b, f', items: [...LT('b', 'f'), W('bed|кровать|🛏️'), W('bus|автобус|🚌'), W('bag|сумка|👜'), W('fun|весело|🎉'),
         MP('bed|кровать|🛏️', 'bad|плохой|👎', 'В <b>bed</b> — звук «э». В <b>bad</b> — рот открыт шире, звук ближе к «а».')] },
@@ -1814,10 +2195,10 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
       { t: 'X и Y', x: '<b>X</b> похожа на «Х», но читается «кс». <b>Y</b> похожа на «У», но в начале слова — «й».' }
     ],
     lessons: [
-      { title: 'j, v, w', items: [...LT('j', 'v', 'w'), W('jam|джем|🍓'), W('jet|реактивный самолёт|✈️'), W('van|фургон|🚐'), W('web|паутина|🕸️'), W('wet|мокрый|💧')] },
+      { title: 'j, v, w', items: [...LT('j', 'v', 'w'), W('jam|джем|🍓'), W('jet|реактивный самолёт|✈️'), W('van|фургон|🚐'), W('web|паутина|🕸️'), W('wet|мокрый|💦')] },
       { title: 'x, y, z', items: [...LT('x', 'y', 'z'), W('box|коробка|📦'), W('fox|лиса|🦊'), ...REF('w:six', 'w:yes'), W('zip|молния (застёжка)|🤐'), W('yum|вкуснятина!|😋')] },
       { title: 'qu', items: [...LT('q'), W('quiz|викторина|🧩'), W('vet|ветеринар|🩺'), W('zigzag|зигзаг|〰️'),
-        MP('vet|ветеринар|🩺', 'wet|мокрый|💧', '<b>v</b> — зубы касаются нижней губы. <b>w</b> — губы трубочкой, зубы не участвуют.'),
+        MP('vet|ветеринар|🩺', 'wet|мокрый|💦', '<b>v</b> — зубы касаются нижней губы. <b>w</b> — губы трубочкой, зубы не участвуют.'),
         MP('vest|жилет|🦺', 'west|запад|🌇', 'Снова <b>v</b> и <b>w</b>. Слушайте начало слова.')] }
     ]
   });
@@ -1883,9 +2264,9 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
       { t: 'my, your', x: '<b>my</b> — мой, моя, моё, мои. <b>your</b> — твой, ваш. Одно слово на все роды!' }
     ],
     items: [
-      W('family|семья|👨‍👩‍👧‍👦'), W('mother|мать|🤱'), W('father|отец|🧔'), W('sister|сестра|👧'), W('brother|брат|👦'),
+      W('family|семья|👨‍👩‍👧‍👦'), W('mother|мать, мама|🤱'), W('father|отец, папа|🧔'), W('sister|сестра|👭'), W('brother|брат|👬'),
       W('wife|жена|👰'), W('husband|муж|🤵'), W('baby|малыш|👶'), W('friend|друг|🧑‍🤝‍🧑'), W('man|мужчина|👨'), W('woman|женщина|👩'),
-      P('This is my wife.|Это моя жена.|👰'), P('I have a brother.|У меня есть брат.|👦'), P('I’m married.|Я женат / замужем.|💍'), P('I have two kids.|У меня двое детей.|👧')
+      P('This is my wife.|Это моя жена.|👰'), P('I have a brother.|У меня есть брат.|👬'), P('I’m married.|Я женат / замужем.|💍'), P('I have two kids.|У меня двое детей.|👧')
     ]
   });
 
@@ -1912,7 +2293,7 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
       { t: 'Счёт — check', x: 'В США счёт в кафе — <b>check</b>. А «здесь или с собой?» — <b>For here or to go?</b>' }
     ],
     items: [
-      W('water|вода|🚰'), W('coffee|кофе|☕'), W('tea|чай|🍵'), W('milk|молоко|🥛'), W('juice|сок|🧃'), W('bread|хлеб|🍞'),
+      W('water|вода|💧'), W('coffee|кофе|☕'), W('tea|чай|🍵'), W('milk|молоко|🥛'), W('juice|сок|🧃'), W('bread|хлеб|🍞'),
       W('egg|яйцо|🥚'), W('apple|яблоко|🍎'), W('banana|банан|🍌'), W('pizza|пицца|🍕'), W('chicken|курица (еда)|🍗'), W('salad|салат|🥗'),
       P('Can I have a coffee, please?|Можно мне кофе, пожалуйста?|☕'), P('A table for two, please.|Столик на двоих, пожалуйста.|🍽️'),
       P('The menu, please.|Меню, пожалуйста.|📋'), P('The check, please.|Счёт, пожалуйста.|🧾'), P('For here or to go?|Здесь или с собой?|🥡'),
@@ -2028,7 +2409,8 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
       S('I [am] Anna.|Я Анна.', 'is,are'), S('You [are] my friend.|Ты мой друг.', 'am,is'), S('He [is] a doctor.|Он врач.', 'am,are'),
       S('She [is] from Moscow.|Она из Москвы.', 'am,are'), S('It [is] cold.|Холодно.', 'am,are'), S('We [are] at home.|Мы дома.', 'am,is'),
       S('They [are] happy.|Они счастливы.', 'am,is'), S('I [am] not tired.|Я не устал.', 'is,are'), S('[Are] you OK?|Ты в порядке?', 'Is,Am'),
-      S('[Is] it far?|Это далеко?', 'Are,Am'), S('The coffee [is] hot.|Кофе горячий.', 'are,am'), S('My sister [is] a nurse.|Моя сестра — медсестра.', 'are,am')
+      S('[Is] it far?|Это далеко?', 'Are,Am'), S('The coffee [is] hot.|Кофе горячий.', 'are,am'), S('My sister [is] a nurse.|Моя сестра — медсестра.', 'are,am'),
+      D.pats.be
     ]
   });
 
@@ -2095,7 +2477,7 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
       [S('I [work] every day.|Я работаю каждый день.', 'works,working'), S('She [works] on Monday.|Она работает в понедельник.', 'work,working'),
         S('He [doesn’t] work on Sunday.|Он не работает в воскресенье.', 'don’t,isn’t')],
       [S('We [watch] movies on Friday.|По пятницам мы смотрим фильмы.', 'watches,watching'), S('Anna [drinks] coffee every morning.|Анна пьёт кофе каждое утро.', 'drink,drinking'),
-        S('I get up at [seven].|Я встаю в семь.', 'seventh,seventy')]
+        S('I get up at [seven].|Я встаю в семь.', 'seventh,seventy'), D.pats.ps]
     ]
   });
 
@@ -2129,7 +2511,8 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
       S('[Do] you speak English?|Вы говорите по-английски?', 'Are,Does'), S('[Does] he like coffee?|Он любит кофе?', 'Do,Is'),
       S('[Where] do you live?|Где вы живёте?', 'What,Who'), S('[What] do you want?|Что вы хотите?', 'Where,When'),
       S('[When] does the shop open?|Когда открывается магазин?', 'Who,What'), S('[Who] is that?|Кто это?', 'What,Where'),
-      S('[Why] are you sad?|Почему ты грустишь?', 'Who,What'), S('[How] are you today?|Как ты сегодня?', 'What,Who'), S('[Do] they work here?|Они здесь работают?', 'Does,Are')
+      S('[Why] are you sad?|Почему ты грустишь?', 'Who,What'), S('[How] are you today?|Как ты сегодня?', 'What,Who'), S('[Do] they work here?|Они здесь работают?', 'Does,Are'),
+      D.pats.q
     ]
   });
 
@@ -2140,7 +2523,7 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
       { t: 'Американские слова', x: 'Квартира — <b>apartment</b>, магазин — <b>store</b>, продукты — <b>groceries</b>.' }
     ],
     items: [
-      W('apartment|квартира|🔑'), W('rent|аренда|📃'), W('neighbor|сосед|🙋‍♂️'), W('doctor|врач|🧑‍⚕️'), W('store|магазин|🏬'),
+      W('apartment|квартира|🏢🛋️'), W('rent|аренда|📃'), W('neighbor|сосед|🙋‍♂️'), W('doctor|врач|🧑‍⚕️'), W('store|магазин|🏬'),
       W('sick|больной|🤒'), W('headache|головная боль|🤕'), W('medicine|лекарство|💉'), W('card|карта (банковская)|💳'), W('cash|наличные|💴'),
       P('I need a doctor.|Мне нужен врач.|🧑‍⚕️'), P('I have a headache.|У меня болит голова.|🤕'), P('I’m looking for an apartment.|Я ищу квартиру.|🔎'),
       P('How much is the rent?|Сколько стоит аренда?|💲'), P('Can I pay by card?|Можно оплатить картой?|💳'), P('Do you take cash?|Вы принимаете наличные?|💴'),
@@ -2149,6 +2532,185 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
   });
 
   D.unit({ id: 'u34', zone: 3, line: 'story', title: 'У врача', sub: 'История', glyph: '7', story: 'st7' });
+})(A.DATA);
+
+</script>
+<script>
+'use strict';
+// Zones 4–5: past, future, comparisons, shopping, phone calls, feelings, dialogues.
+(function (D) {
+  const { W, P, S } = D;
+  D.zones[4] = 'Рассказываю о прошлом';
+  D.zones[5] = 'Планы и живые разговоры';
+
+  // ---------- Zone 4 ----------
+  D.unit({
+    id: 'u35', zone: 4, line: 'gram', title: 'Было: was, were', sub: 'Прошедшее время глагола «быть»', glyph: 'was',
+    tips: [
+      { t: 'was и were', x: 'Прошлое от am / is / are. <b>I, he, she, it — was</b>; <b>you, we, they — were</b>.', ex: ['I was', 'she was', 'they were'] },
+      { t: 'Вопрос и отрицание', x: 'Вопрос — was / were вперёд: <b>Was</b> it good? Отрицание — <b>wasn’t</b>, <b>weren’t</b>.' }
+    ],
+    size: 3,
+    items: [
+      S('I [was] at home yesterday.|Вчера я был(а) дома.', 'were,am'), S('It [was] a good day.|Это был хороший день.', 'were,is'),
+      S('We [were] in Boston.|Мы были в Бостоне.', 'was,are'), S('[Was] the movie good?|Фильм был хороший?', 'Were,Is'),
+      S('They [were] very tired.|Они очень устали.', 'was,are'), S('I [wasn’t] at work.|Я не был(а) на работе.', 'weren’t,isn’t'),
+      D.pats.was
+    ]
+  });
+
+  D.unit({
+    id: 'u36', zone: 4, line: 'talk', title: 'Когда это было?', sub: 'yesterday · last week · ago', glyph: 'ago',
+    tips: [
+      { t: 'last и ago', x: '<b>last</b> — «прошлый»: last week, last night. <b>ago</b> ставится после срока: two days <b>ago</b> — два дня назад.' }
+    ],
+    items: [
+      W('yesterday|вчера|⏪'), W('last night|вчера вечером|🌉'), W('last week|на прошлой неделе'), W('ago|назад'),
+      W('before|до, раньше'), W('after|после'), W('later|позже'), W('early|рано|🌄'), W('late|поздно|🕚'), W('weekend|выходные|🧺'),
+      P('Two days ago.|Два дня назад.|📆'), P('What did you do yesterday?|Что ты делал(а) вчера?|❓'), P('How was your weekend?|Как прошли выходные?|🙂'),
+      P('It was great!|Было здорово!|🤩'), P('Long time no see!|Сто лет не виделись!|👋')
+    ]
+  });
+
+  D.unit({
+    id: 'u37', zone: 4, line: 'gram', title: 'Прошлое: -ed', sub: 'worked · played · watched', glyph: '-ed',
+    tips: [
+      { t: 'Правильные глаголы', x: 'О прошлом говорят, добавляя <b>-ed</b>: work → worked, play → played. Форма одна для всех: I worked, she worked.' },
+      { t: 'Как читать -ed', x: 'После глухих звуков — «т» (worked, watched), после звонких — «д» (played, called), после t и d — «ид» (wanted, visited).', ex: ['worked', 'played', 'wanted'] }
+    ],
+    lessons: [
+      [W('worked|работал(а) (work)'), W('played|играл(а) (play)'), W('watched|смотрел(а) (watch)'), W('cooked|готовил(а) (cook)')],
+      [W('called|звонил(а) (call)'), W('wanted|хотел(а) (want)'), W('visited|навещал(а), посетил(а) (visit)'), W('lived|жил(а) (live)')],
+      [S('I [worked] late yesterday.|Вчера я работал(а) допоздна.', 'work,works'), S('She [called] me last night.|Она звонила мне вчера вечером.', 'calls,call'), D.pats.ed]
+    ]
+  });
+
+  D.unit({ id: 'u38', zone: 4, line: 'story', title: 'Первый месяц', sub: 'История', glyph: '8', story: 'st8' });
+  D.unit({ id: 'u39', zone: 4, line: 'dial', title: 'Заселение в отель', sub: 'Диалог: вы — Анна', glyph: '⇄', story: 'd1' });
+
+  D.unit({
+    id: 'u40', zone: 4, line: 'gram', title: 'Неправильные глаголы', sub: 'went · saw · ate · bought', glyph: 'went',
+    tips: [
+      { t: 'Особое прошлое', x: 'У самых частых глаголов прошлое особое: go → <b>went</b>, see → <b>saw</b>, eat → <b>ate</b>. Их немного, а встречаются они постоянно — просто запоминаем.' }
+    ],
+    lessons: [
+      [W('went|пошёл, ходил (go)'), W('saw|видел (see)'), W('ate|ел (eat)'), W('drank|пил (drink)')],
+      [W('bought|купил (buy)'), W('had|имел; у меня был (have)'), W('got|получил; добрался (get)'), W('made|сделал (make)')],
+      [W('came|пришёл (come)'), W('took|взял (take)'), S('We [went] to the park.|Мы ходили в парк.', 'go,goed'), S('I [saw] a big dog.|Я видел(а) большую собаку.', 'see,seed')],
+      [S('She [bought] a new phone.|Она купила новый телефон.', 'buy,buyed'), D.pats.irr]
+    ]
+  });
+
+  D.unit({
+    id: 'u41', zone: 4, line: 'gram', title: 'Did you…? I didn’t…', sub: 'Вопросы и отрицания в прошлом', glyph: 'did',
+    tips: [
+      { t: 'did', x: 'Вопрос в прошлом: <b>Did</b> you see Tom? Отрицание: I <b>didn’t</b> see Tom. После did глагол в обычной форме: did you <b>see</b>, а не saw.' }
+    ],
+    size: 3,
+    items: [
+      S('[Did] you see Tom?|Ты видел(а) Тома?', 'Do,Was'), S('I [didn’t] see him.|Я его не видел(а).', 'don’t,wasn’t'),
+      S('[Did] she call you?|Она тебе звонила?', 'Does,Was'), S('We [didn’t] go out.|Мы никуда не ходили.', 'don’t,weren’t'),
+      S('Did you [eat] breakfast?|Ты завтракал(а)?', 'ate,eats'), S('What [did] you do?|Что ты делал(а)?', 'do,was'),
+      D.pats.did
+    ]
+  });
+
+  D.unit({ id: 'u42', zone: 4, line: 'story', title: 'Где Том?', sub: 'История', glyph: '9', story: 'st9' });
+
+  D.unit({
+    id: 'u43', zone: 4, line: 'talk', title: 'Покупки и одежда', sub: 'Размер, цена, примерка', glyph: 'size',
+    tips: [
+      { t: 'Полезные фразы', x: '<b>I’m just looking</b> — «я просто смотрю», когда продавец предлагает помощь. <b>Can I try it on?</b> — «можно примерить?»' }
+    ],
+    items: [
+      W('clothes|одежда|👚'), W('jacket|куртка|🧥'), W('dress|платье|👗'), W('shoes|обувь, туфли|👟'), W('size|размер|📐'),
+      W('price|цена|🏷️'), W('cheap|дешёвый|🪙'), W('expensive|дорогой|💎'), W('sale|распродажа, скидка|🔖'),
+      P('Can I try it on?|Можно примерить?|🪞'), P('Do you have a smaller size?|У вас есть размер поменьше?|📐'), P('I’m just looking.|Я просто смотрю.|👀'),
+      P('How much is this jacket?|Сколько стоит эта куртка?|🏷️'), P('It’s too expensive.|Это слишком дорого.|💸'), P('I’ll take it.|Я возьму это.|👍'),
+      P('Can I get a receipt?|Можно чек?|🧾')
+    ]
+  });
+
+  D.unit({ id: 'u44', zone: 4, line: 'dial', title: 'В магазине одежды', sub: 'Диалог: вы — Анна', glyph: '⇄', story: 'd2' });
+  D.unit({ id: 'u45', zone: 4, line: 'story', title: 'Холодная суббота', sub: 'История', glyph: '10', story: 'st10' });
+
+  // ---------- Zone 5 ----------
+  D.unit({
+    id: 'u46', zone: 5, line: 'gram', title: 'Собираюсь: going to', sub: 'Планы на будущее', glyph: 'going',
+    tips: [
+      { t: 'going to', x: 'Когда уже решили что-то сделать: I’m <b>going to</b> call mom — я собираюсь позвонить маме. Перед going to нужен am / is / are.' }
+    ],
+    size: 3,
+    items: [
+      S('I’m [going] to call mom.|Я собираюсь позвонить маме.', 'go,will'), S('She [is] going to cook dinner.|Она собирается приготовить ужин.', 'are,am'),
+      S('We are going [to] watch a movie.|Мы собираемся посмотреть фильм.', 'for,at'), S('[Are] you going to come?|Ты собираешься прийти?', 'Is,Do'),
+      S('It’s [going] to rain.|Сейчас пойдёт дождь.', 'go,will'), D.pats.going
+    ]
+  });
+
+  D.unit({ id: 'u47', zone: 5, line: 'story', title: 'Планы на выходные', sub: 'История', glyph: '11', story: 'st11' });
+
+  D.unit({
+    id: 'u48', zone: 5, line: 'talk', title: 'Телефон и встречи', sub: 'Звонки, сообщения, планы', glyph: 'call',
+    tips: [
+      { t: 'По телефону', x: 'Отвечая на звонок, говорят <b>Hello?</b> Попросить подождать — <b>Hold on, please</b>. Перезвонить — <b>call back</b>.' }
+    ],
+    items: [
+      W('message|сообщение|✉️'), W('text|писать сообщение|📲'), W('free|свободный|🆓'), W('meet|встречаться|🤝'), W('tonight|сегодня вечером|🌇'),
+      P('Can you call me back?|Можете мне перезвонить?|📞'), P('I’ll text you.|Я тебе напишу.|📲'), P('Let’s meet at six.|Давай встретимся в шесть.|🕕'),
+      P('Sorry, I’m late.|Извините, я опоздал(а).|⏰'), P('Are you free tomorrow?|Ты завтра свободен?|🗓️'), P('What are you doing tonight?|Что ты делаешь сегодня вечером?|🌙'),
+      P('See you soon!|До скорого!|👋'), P('Hold on, please.|Подождите, пожалуйста.|✋')
+    ]
+  });
+
+  D.unit({ id: 'u49', zone: 5, line: 'dial', title: 'Звонок в пиццерию', sub: 'Диалог: вы — Анна', glyph: '⇄', story: 'd3' });
+
+  D.unit({
+    id: 'u50', zone: 5, line: 'gram', title: 'Будущее: will', sub: 'will · won’t', glyph: 'will',
+    tips: [
+      { t: 'will', x: 'Обещание, решение прямо сейчас или прогноз: I’ll help you. It <b>will</b> be cold. Отрицание — <b>won’t</b> (will not).' },
+      { t: 'I’ll = I will', x: 'В речи почти всегда сокращают: I’ll, you’ll, she’ll, we’ll.' }
+    ],
+    size: 3,
+    items: [
+      S('I’ll [help] you.|Я тебе помогу.', 'helps,helping'), S('It [will] be cold tomorrow.|Завтра будет холодно.', 'is,was'),
+      S('I [won’t] be late.|Я не опоздаю.', 'don’t,am not'), S('[Will] you come?|Ты придёшь?', 'Do,Are'),
+      S('She will [call] you later.|Она позвонит тебе позже.', 'calls,called'), D.pats.will
+    ]
+  });
+
+  D.unit({ id: 'u51', zone: 5, line: 'story', title: 'Звонок маме', sub: 'История', glyph: '12', story: 'st12' });
+
+  D.unit({
+    id: 'u52', zone: 5, line: 'talk', title: 'Чувства', sub: 'Как вы себя чувствуете?', glyph: ':)',
+    tips: [
+      { t: 'I feel…', x: 'О чувствах говорят через am / is: I’m <b>tired</b>, she’s <b>happy</b>. Или: I <b>feel</b> great.' }
+    ],
+    items: [
+      W('happy|счастливый, радостный|😄'), W('sad|грустный|😢'), W('angry|злой, сердитый|😡'), W('tired|уставший|😩'), W('bored|скучающий|😑'),
+      W('excited|в восторге|🤩'), W('worried|обеспокоенный|😟'), W('nervous|нервный|😬'), W('scared|напуганный|😨'), W('surprised|удивлённый|😮'),
+      P('How do you feel?|Как ты себя чувствуешь?|🙂'), P('I feel great!|Я чувствую себя отлично!|💪'), P('I’m so excited!|Я в восторге!|🥳'),
+      P('Don’t worry.|Не волнуйся.|🤗'), P('What’s wrong?|Что случилось?|❓')
+    ]
+  });
+
+  D.unit({
+    id: 'u53', zone: 5, line: 'gram', title: 'Сравнения', sub: 'bigger · better · more expensive', glyph: '-er',
+    tips: [
+      { t: 'Больше, лучше, дороже', x: 'Короткие слова получают <b>-er</b> и <b>than</b> («чем»): big → bigger than. Длинные — со словом <b>more</b>: more expensive. Исключения: good → <b>better</b>, bad → <b>worse</b>.' }
+    ],
+    lessons: [
+      [W('bigger|больше'), W('smaller|меньше'), W('better|лучше'), W('worse|хуже'), W('than|чем')],
+      [S('Tea is [cheaper] than coffee.|Чай дешевле кофе.', 'cheap,more cheap'), S('This is [better] than that.|Это лучше, чем то.', 'good,gooder'), D.pats.cmp]
+    ]
+  });
+
+  D.unit({ id: 'u54', zone: 5, line: 'story', title: 'Снег в Нью-Йорке', sub: 'История', glyph: '13', story: 'st13' });
+  D.unit({ id: 'u55', zone: 5, line: 'dial', title: 'Собеседование', sub: 'Диалог: вы — Анна', glyph: '⇄', story: 'd4' });
+  D.unit({ id: 'u56', zone: 5, line: 'dial', title: 'Соседка', sub: 'Диалог: вы — Анна', glyph: '⇄', story: 'd5' });
+  D.unit({ id: 'u57', zone: 5, line: 'story', title: 'День рождения Бена', sub: 'История', glyph: '14', story: 'st14' });
+  D.unit({ id: 'u58', zone: 5, line: 'dial', title: 'Регистрация на рейс', sub: 'Диалог: вы — Анна', glyph: '⇄', story: 'd6' });
+  D.unit({ id: 'u59', zone: 5, line: 'story', title: 'Домой на праздники', sub: 'Финал истории Анны', glyph: '15', story: 'st15' });
 })(A.DATA);
 
 </script>
@@ -2330,6 +2892,346 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
 </script>
 <script>
 'use strict';
+// Stories 8–15 (past, future, comparisons) and dialogues d1–d6 (the learner plays Anna).
+(function (D) {
+  const story = (id, o) => { D.stories[id] = Object.assign({ id }, o); };
+  const dialog = (id, o) => { D.stories[id] = Object.assign({ id, type: 'dialog', role: 'Anna' }, o); };
+
+  story('st8', {
+    title: 'Первый месяц', intro: 'Прошёл месяц. Анна пишет письмо подруге Ольге в Москву.',
+    lines: [
+      ['Anna', 'Hi, Olga! My first month in New York was great.', 'Привет, Ольга! Мой первый месяц в Нью-Йорке был отличным.'],
+      ['Anna', 'I worked a lot, but I liked my job.', 'Я много работала, но мне понравилась моя работа.'],
+      ['Anna', 'My colleagues were very nice.', 'Мои коллеги были очень приятными.'],
+      ['Anna', 'On Saturday, I visited a museum with Ben.', 'В субботу я ходила в музей с Беном.'],
+      ['Anna', 'We walked in the park and talked a lot.', 'Мы гуляли в парке и много разговаривали.'],
+      ['Anna', 'In the evening, I cooked Russian food for Ben.', 'Вечером я приготовила русскую еду для Бена.'],
+      ['Anna', 'He liked it! He wanted more.', 'Ему понравилось! Он хотел ещё.'],
+      ['Anna', 'Tom was happy too. He watched the birds from the window.', 'Том тоже был счастлив. Он смотрел на птиц из окна.'],
+      ['Anna', 'I miss you! Love, Anna.', 'Скучаю! С любовью, Анна.']
+    ],
+    questions: [
+      ['Каким был первый месяц Анны?', 'Отличным', 'Скучным', 'Трудным'],
+      ['Куда Анна ходила с Беном в субботу?', 'В музей', 'В кино', 'В аэропорт'],
+      ['Что делал Том?', 'Смотрел на птиц', 'Спал в сумке', 'Ел пиццу']
+    ]
+  });
+
+  story('st9', {
+    title: 'Где Том?', intro: 'Однажды вечером Анна вернулась домой — а кота нет.',
+    lines: [
+      ['Anna', 'Tom! Where are you?', 'Том! Где ты?'],
+      ['Anna', 'Ben, I can’t find Tom! Did you see him?', 'Бен, я не могу найти Тома! Ты его видел?'],
+      ['Ben', 'No, I didn’t. When did you see him last?', 'Нет, не видел. Когда ты видела его в последний раз?'],
+      ['Anna', 'This morning. I opened the window, and then I went to work.', 'Сегодня утром. Я открыла окно, а потом ушла на работу.'],
+      ['Ben', 'Don’t worry. Let’s look in the park.', 'Не волнуйся. Давай поищем в парке.'],
+      ['', 'They went to the park. They looked everywhere.', 'Они пошли в парк. Они искали везде.'],
+      ['Ben', 'Look! A big red cat in the tree!', 'Смотри! Большой рыжий кот на дереве!'],
+      ['Anna', 'Tom! Come down, please!', 'Том! Слезай, пожалуйста!'],
+      ['', 'Tom came down and ate his dinner at home.', 'Том слез и поужинал дома.'],
+      ['Anna', 'Thank you, Ben! You’re a good friend.', 'Спасибо, Бен! Ты хороший друг.']
+    ],
+    questions: [
+      ['Где был Том?', 'На дереве в парке', 'В магазине', 'У Бена дома'],
+      ['Что Анна сделала утром?', 'Открыла окно', 'Позвонила маме', 'Купила корм'],
+      ['Кто помог Анне?', 'Бен', 'Мама', 'Доктор']
+    ]
+  });
+
+  story('st10', {
+    title: 'Холодная суббота', intro: 'Понедельник. Анна рассказывает Бену о выходных.',
+    lines: [
+      ['Ben', 'Hi, Anna! How was your weekend?', 'Привет, Анна! Как прошли выходные?'],
+      ['Anna', 'It was cold! I went to the store and bought a warm jacket.', 'Было холодно! Я пошла в магазин и купила тёплую куртку.'],
+      ['Ben', 'Was it expensive?', 'Она была дорогая?'],
+      ['Anna', 'No, there was a big sale. It was cheap!', 'Нет, была большая распродажа. Было дёшево!'],
+      ['Anna', 'Then I had coffee in a small cafe.', 'Потом я выпила кофе в маленьком кафе.'],
+      ['Ben', 'Did you go to the park?', 'Ты ходила в парк?'],
+      ['Anna', 'No, I didn’t. It was too cold for me!', 'Нет. Для меня было слишком холодно!'],
+      ['Ben', 'Too cold? But you’re from Moscow!', 'Слишком холодно? Но ты же из Москвы!'],
+      ['Anna', 'Yes, but in Moscow I had a very warm coat!', 'Да, но в Москве у меня было очень тёплое пальто!']
+    ],
+    questions: [
+      ['Что купила Анна?', 'Тёплую куртку', 'Новый телефон', 'Платье'],
+      ['Почему куртка была дешёвой?', 'Была распродажа', 'Она маленькая', 'Бен помог'],
+      ['Почему Анна не пошла в парк?', 'Было слишком холодно', 'Шёл дождь', 'Она работала']
+    ]
+  });
+
+  story('st11', {
+    title: 'Планы на выходные', intro: 'Пятница. Бен и Анна обсуждают планы.',
+    lines: [
+      ['Ben', 'What are you going to do this weekend?', 'Что ты собираешься делать на выходных?'],
+      ['Anna', 'I’m going to clean my apartment. It’s a mess!', 'Я собираюсь убраться в квартире. Там беспорядок!'],
+      ['Ben', 'Boring! I’m going to visit my sister in Boston. Do you want to come?', 'Скучно! Я собираюсь навестить сестру в Бостоне. Хочешь со мной?'],
+      ['Anna', 'Boston? Yes! How are we going to get there?', 'В Бостон? Да! Как мы туда доберёмся?'],
+      ['Ben', 'We’re going to take the train. It’s four hours.', 'Поедем на поезде. Это четыре часа.'],
+      ['Anna', 'Great! I’m going to buy the tickets tonight.', 'Отлично! Я куплю билеты сегодня вечером.'],
+      ['Ben', 'And Tom?', 'А Том?'],
+      ['Anna', 'Tom is going to sleep. As always!', 'Том будет спать. Как всегда!']
+    ],
+    questions: [
+      ['Что Анна собиралась делать сначала?', 'Убраться в квартире', 'Поехать в Бостон', 'Пойти в кино'],
+      ['Кто живёт в Бостоне?', 'Сестра Бена', 'Мама Анны', 'Коллега Анны'],
+      ['Как они поедут?', 'На поезде', 'На самолёте', 'На такси']
+    ]
+  });
+
+  story('st12', {
+    title: 'Звонок маме', intro: 'Анна звонит маме в Москву.',
+    lines: [
+      ['Mom', 'Hello? Anna! How are you, my dear?', 'Алло? Анна! Как ты, дорогая?'],
+      ['Anna', 'Hi, Mom! I’m fine. I speak English every day now!', 'Привет, мама! Всё хорошо. Я теперь каждый день говорю по-английски!'],
+      ['Mom', 'Great! What did you do last weekend?', 'Здорово! Что ты делала в прошлые выходные?'],
+      ['Anna', 'I went to Boston with Ben. We saw the sea!', 'Я ездила в Бостон с Беном. Мы видели море!'],
+      ['Mom', 'Will you come home for the holidays?', 'Ты приедешь домой на праздники?'],
+      ['Anna', 'Yes! I’ll buy a ticket next week.', 'Да! Я куплю билет на следующей неделе.'],
+      ['Mom', 'Wonderful! I’ll cook your favorite food.', 'Чудесно! Я приготовлю твою любимую еду.'],
+      ['Anna', 'And I’ll bring presents for everyone!', 'А я привезу всем подарки!'],
+      ['Mom', 'Don’t forget Tom!', 'Не забудь Тома!'],
+      ['Anna', 'I won’t, Mom. I love you!', 'Не забуду, мама. Люблю тебя!']
+    ],
+    questions: [
+      ['Что Анна видела в Бостоне?', 'Море', 'Горы', 'Снег'],
+      ['Что приготовит мама?', 'Любимую еду Анны', 'Торт для Бена', 'Ничего'],
+      ['Что привезёт Анна?', 'Подарки', 'Кота Бена', 'Новую куртку']
+    ]
+  });
+
+  story('st13', {
+    title: 'Снег в Нью-Йорке', intro: 'Декабрь. В Нью-Йорке выпал снег.',
+    lines: [
+      ['', 'In December, it snowed in New York.', 'В декабре в Нью-Йорке пошёл снег.'],
+      ['Ben', 'Wow! It’s so cold today!', 'Ого! Как сегодня холодно!'],
+      ['Anna', 'Cold? In Moscow it’s colder. Much colder!', 'Холодно? В Москве холоднее. Намного холоднее!'],
+      ['Ben', 'Is Moscow bigger than New York?', 'Москва больше Нью-Йорка?'],
+      ['Anna', 'Maybe. But the subway in Moscow is more beautiful.', 'Может быть. Но метро в Москве красивее.'],
+      ['Ben', 'And the pizza in New York is better!', 'А пицца в Нью-Йорке лучше!'],
+      ['Anna', 'Yes, that’s true. Your pizza is the best.', 'Да, это правда. Ваша пицца самая лучшая.'],
+      ['Ben', 'Let’s go to the park and play in the snow!', 'Пойдём в парк, поиграем в снегу!'],
+      ['Anna', 'OK! But Tom will stay at home. It’s warmer there.', 'Хорошо! Но Том останется дома. Там теплее.']
+    ],
+    questions: [
+      ['Где холоднее?', 'В Москве', 'В Нью-Йорке', 'В Бостоне'],
+      ['Что, по словам Бена, лучше в Нью-Йорке?', 'Пицца', 'Метро', 'Погода'],
+      ['Почему Том останется дома?', 'Там теплее', 'Он спит', 'Он болеет']
+    ]
+  });
+
+  story('st14', {
+    title: 'День рождения Бена', intro: 'У Бена день рождения. Анна идёт к нему с подарком.',
+    lines: [
+      ['Anna', 'Happy birthday, Ben! This is for you.', 'С днём рождения, Бен! Это тебе.'],
+      ['Ben', 'Thank you! Wow, a book about Russia!', 'Спасибо! Ого, книга о России!'],
+      ['Anna', 'Yes! Now you can learn some Russian words.', 'Да! Теперь ты можешь выучить немного русских слов.'],
+      ['Ben', 'How do you say “thank you” in Russian?', 'Как сказать «спасибо» по-русски?'],
+      ['Anna', 'Spasibo!', 'Спасибо!'],
+      ['Ben', 'Spasibo, Anna! Come in, everyone is here.', 'Спасибо, Анна! Заходи, все уже здесь.'],
+      ['', 'There was music, cake and a lot of people.', 'Была музыка, торт и много людей.'],
+      ['Ben', 'Everyone, this is Anna. She is from Moscow, and she speaks English very well!', 'Знакомьтесь, это Анна. Она из Москвы и очень хорошо говорит по-английски!'],
+      ['Anna', 'Thank you! A year ago, I didn’t know any English.', 'Спасибо! Год назад я совсем не знала английского.'],
+      ['Ben', 'And now she talks more than me!', 'А теперь она говорит больше меня!']
+    ],
+    questions: [
+      ['Что Анна подарила Бену?', 'Книгу о России', 'Торт', 'Куртку'],
+      ['Какое русское слово выучил Бен?', 'Спасибо', 'Привет', 'Пока'],
+      ['Когда Анна совсем не знала английского?', 'Год назад', 'Неделю назад', 'Вчера']
+    ]
+  });
+
+  story('st15', {
+    title: 'Домой на праздники', intro: 'Анна летит домой. Финал истории.',
+    lines: [
+      ['', 'Anna is on the plane to Moscow. Tom is in his bag.', 'Анна в самолёте, летит в Москву. Том в своей сумке.'],
+      ['Anna', 'Tom, do you remember our first flight?', 'Том, помнишь наш первый полёт?'],
+      ['Anna', 'I didn’t understand anything. I only knew “Hello” and “Thank you”.', 'Я ничего не понимала. Я знала только «Hello» и «Thank you».'],
+      ['Anna', 'Now I can talk to people, read stories and watch movies in English.', 'А теперь я могу разговаривать с людьми, читать истории и смотреть фильмы на английском.'],
+      ['Anna', 'Every day a little. That was the secret.', 'Каждый день понемногу. В этом и был секрет.'],
+      ['', 'The plane landed. Mom and Dad were at the airport.', 'Самолёт приземлился. Мама и папа ждали в аэропорту.'],
+      ['Mom', 'Anna! We missed you so much!', 'Анна! Мы так по тебе скучали!'],
+      ['Dad', 'Say something in English!', 'Скажи что-нибудь по-английски!'],
+      ['Anna', 'I’m home, and I’m very happy. Let’s go!', 'Я дома, и я очень счастлива. Поехали!']
+    ],
+    questions: [
+      ['Что Анна знала во время первого полёта?', 'Только «Hello» и «Thank you»', 'Весь английский', 'Только цифры'],
+      ['В чём, по словам Анны, был секрет?', 'Каждый день понемногу', 'Много часов раз в неделю', 'Только фильмы'],
+      ['Кто встретил Анну?', 'Мама и папа', 'Бен', 'Коллеги']
+    ]
+  });
+
+  // ---------- Dialogues: first listen, then play Anna's part ----------
+  dialog('d1', {
+    title: 'Заселение в отель', intro: 'Анна приехала в отель в Бостоне. Сначала послушайте разговор, потом сыграйте Анну.',
+    lines: [
+      ['Receptionist', 'Good evening! Welcome to the Park Hotel.', 'Добрый вечер! Добро пожаловать в отель «Парк».'],
+      ['Anna', 'Hi! I have a reservation. My name is Anna Ivanova.', 'Здравствуйте! У меня бронь. Меня зовут Анна Иванова.'],
+      ['Receptionist', 'Let me check. Yes, a single room for three nights.', 'Сейчас проверю. Да, одноместный номер на три ночи.'],
+      ['Anna', 'That’s right.', 'Всё верно.'],
+      ['Receptionist', 'Can I see your passport, please?', 'Можно ваш паспорт, пожалуйста?'],
+      ['Anna', 'Sure. Here you are.', 'Конечно. Вот, пожалуйста.'],
+      ['Receptionist', 'Thank you. Your room is on the fifth floor. Here is your key.', 'Спасибо. Ваш номер на пятом этаже. Вот ваш ключ.'],
+      ['Anna', 'What time is breakfast?', 'Во сколько завтрак?'],
+      ['Receptionist', 'From seven to ten. Enjoy your stay!', 'С семи до десяти. Приятного отдыха!'],
+      ['Anna', 'Thank you very much!', 'Большое спасибо!']
+    ],
+    questions: [
+      ['На сколько ночей бронь у Анны?', 'На три ночи', 'На одну ночь', 'На неделю'],
+      ['На каком этаже номер?', 'На пятом', 'На первом', 'На десятом'],
+      ['Во сколько завтрак?', 'С семи до десяти', 'С шести до девяти', 'В полдень']
+    ]
+  });
+
+  dialog('d2', {
+    title: 'В магазине одежды', intro: 'Анна покупает тёплую куртку.',
+    lines: [
+      ['Clerk', 'Hi there! Can I help you?', 'Здравствуйте! Вам помочь?'],
+      ['Anna', 'Hi! I’m looking for a warm jacket.', 'Здравствуйте! Я ищу тёплую куртку.'],
+      ['Clerk', 'What size are you?', 'Какой у вас размер?'],
+      ['Anna', 'Small, I think.', 'Кажется, маленький.'],
+      ['Clerk', 'How about this blue one?', 'Как вам вот эта синяя?'],
+      ['Anna', 'It’s nice. Can I try it on?', 'Красивая. Можно примерить?'],
+      ['Clerk', 'Of course. The fitting room is over there.', 'Конечно. Примерочная вон там.'],
+      ['Anna', 'It’s perfect! How much is it?', 'Идеально! Сколько она стоит?'],
+      ['Clerk', 'It’s eighty dollars, but today it’s on sale. Sixty dollars.', 'Восемьдесят долларов, но сегодня скидка. Шестьдесят долларов.'],
+      ['Anna', 'Great! I’ll take it. Can I pay by card?', 'Отлично! Я возьму. Можно оплатить картой?']
+    ],
+    questions: [
+      ['Что ищет Анна?', 'Тёплую куртку', 'Платье', 'Обувь'],
+      ['Какого цвета куртка?', 'Синего', 'Красного', 'Чёрного'],
+      ['Сколько куртка стоит сегодня?', '60 долларов', '80 долларов', '100 долларов']
+    ]
+  });
+
+  dialog('d3', {
+    title: 'Звонок в пиццерию', intro: 'Анна бронирует столик по телефону.',
+    lines: [
+      ['Host', 'Hello, Luigi’s Pizza. How can I help you?', 'Алло, пиццерия «Луиджи». Чем могу помочь?'],
+      ['Anna', 'Hi! I’d like to book a table for Friday.', 'Здравствуйте! Я бы хотела забронировать столик на пятницу.'],
+      ['Host', 'Sure. For how many people?', 'Конечно. На сколько человек?'],
+      ['Anna', 'For two people, please.', 'На двоих, пожалуйста.'],
+      ['Host', 'What time?', 'На какое время?'],
+      ['Anna', 'At seven, if possible.', 'На семь, если можно.'],
+      ['Host', 'Sorry, seven is full. Is eight OK?', 'Извините, на семь всё занято. Восемь подойдёт?'],
+      ['Anna', 'Yes, eight is fine.', 'Да, восемь подходит.'],
+      ['Host', 'Great. Can I have your name, please?', 'Отлично. Ваше имя, пожалуйста?'],
+      ['Anna', 'Anna. A, N, N, A.', 'Анна. A, N, N, A.'],
+      ['Host', 'Thank you, Anna. See you on Friday!', 'Спасибо, Анна. Ждём вас в пятницу!']
+    ],
+    questions: [
+      ['Что хочет Анна?', 'Забронировать столик', 'Заказать пиццу домой', 'Найти работу'],
+      ['На сколько человек столик?', 'На двоих', 'На четверых', 'На одного'],
+      ['На какое время бронь?', 'На восемь', 'На семь', 'На шесть']
+    ]
+  });
+
+  dialog('d4', {
+    title: 'Собеседование', intro: 'Анна пришла на собеседование на новую должность.',
+    lines: [
+      ['Manager', 'Hello, Anna. Please, sit down.', 'Здравствуйте, Анна. Садитесь, пожалуйста.'],
+      ['Anna', 'Thank you. Nice to meet you.', 'Спасибо. Приятно познакомиться.'],
+      ['Manager', 'Tell me about yourself.', 'Расскажите о себе.'],
+      ['Anna', 'I’m a programmer. I’m from Moscow, and now I live in New York.', 'Я программист. Я из Москвы, а сейчас живу в Нью-Йорке.'],
+      ['Manager', 'How many years did you work as a programmer?', 'Сколько лет вы работали программистом?'],
+      ['Anna', 'Five years. I worked for a big company in Moscow.', 'Пять лет. Я работала в большой компании в Москве.'],
+      ['Manager', 'Why do you want this job?', 'Почему вы хотите эту работу?'],
+      ['Anna', 'I like your team, and I want to learn new things.', 'Мне нравится ваша команда, и я хочу учиться новому.'],
+      ['Manager', 'Great. Do you have any questions?', 'Отлично. У вас есть вопросы?'],
+      ['Anna', 'Yes. When can I start?', 'Да. Когда я могу начать?'],
+      ['Manager', 'Next Monday!', 'В следующий понедельник!']
+    ],
+    questions: [
+      ['Кем работает Анна?', 'Программистом', 'Врачом', 'Учителем'],
+      ['Сколько лет она работала в Москве?', 'Пять лет', 'Два года', 'Десять лет'],
+      ['Когда Анна может начать?', 'В следующий понедельник', 'Завтра', 'Через месяц']
+    ]
+  });
+
+  dialog('d5', {
+    title: 'Соседка', intro: 'Утро. Анна встречает соседку в лифте.',
+    lines: [
+      ['Mrs. Lee', 'Good morning! You’re the new neighbor, right?', 'Доброе утро! Вы новая соседка, да?'],
+      ['Anna', 'Yes, I’m Anna. I live in 5B.', 'Да, я Анна. Я живу в квартире 5B.'],
+      ['Mrs. Lee', 'I’m Mrs. Lee, from 5A. Welcome!', 'Я миссис Ли из 5A. Добро пожаловать!'],
+      ['Anna', 'Thank you! Nice weather today, isn’t it?', 'Спасибо! Хорошая сегодня погода, правда?'],
+      ['Mrs. Lee', 'Yes, it’s sunny. Is that your cat in the window?', 'Да, солнечно. Это ваш кот в окне?'],
+      ['Anna', 'Yes, that’s Tom. I hope he isn’t too loud.', 'Да, это Том. Надеюсь, он не слишком шумит.'],
+      ['Mrs. Lee', 'Not at all. I love cats! I have two.', 'Совсем нет. Я люблю кошек! У меня их две.'],
+      ['Anna', 'Really? What are their names?', 'Правда? Как их зовут?'],
+      ['Mrs. Lee', 'Milk and Cookie. Come for tea on Sunday!', 'Милк и Куки. Приходите на чай в воскресенье!'],
+      ['Anna', 'I’d love to. See you on Sunday!', 'С удовольствием. До воскресенья!']
+    ],
+    questions: [
+      ['Где живёт миссис Ли?', 'В квартире 5A', 'В квартире 5B', 'В Бостоне'],
+      ['Сколько кошек у миссис Ли?', 'Две', 'Одна', 'Ни одной'],
+      ['Куда миссис Ли пригласила Анну?', 'На чай в воскресенье', 'В кино', 'На работу']
+    ]
+  });
+
+  dialog('d6', {
+    title: 'Регистрация на рейс', intro: 'Анна летит домой на праздники и регистрируется на рейс.',
+    lines: [
+      ['Agent', 'Good afternoon. Where are you flying today?', 'Добрый день. Куда вы летите сегодня?'],
+      ['Anna', 'To Moscow.', 'В Москву.'],
+      ['Agent', 'May I have your passport and ticket, please?', 'Можно ваш паспорт и билет, пожалуйста?'],
+      ['Anna', 'Here you are.', 'Вот, пожалуйста.'],
+      ['Agent', 'Do you have any bags to check?', 'Будете сдавать багаж?'],
+      ['Anna', 'Yes, one suitcase. And I have a cat with me.', 'Да, один чемодан. И со мной кот.'],
+      ['Agent', 'No problem. The cat stays with you on the plane.', 'Без проблем. Кот летит с вами в салоне.'],
+      ['Anna', 'Can I have a window seat, please?', 'Можно место у окна?'],
+      ['Agent', 'Sure. Boarding is at gate twenty-two at three o’clock.', 'Конечно. Посадка у выхода двадцать два в три часа.'],
+      ['Anna', 'Thank you! Have a nice day.', 'Спасибо! Хорошего дня.']
+    ],
+    questions: [
+      ['Куда летит Анна?', 'В Москву', 'В Бостон', 'В Лондон'],
+      ['Какое место попросила Анна?', 'У окна', 'У прохода', 'Рядом с Беном'],
+      ['Где посадка?', 'У выхода 22', 'У выхода 14', 'У выхода 5']
+    ]
+  });
+
+  // Translations for words that appear only in these stories and dialogues
+  Object.assign(D.gloss, {
+    olga: 'Ольга (имя)', month: 'месяц', first: 'первый', liked: 'понравилось (like)', walked: 'гуляли (walk)', talked: 'разговаривали (talk)',
+    russian: 'русский; русский язык', miss: 'скучать', find: 'найти', last: 'последний; прошлый', opened: 'открыл(а) (open)', everywhere: 'везде',
+    come: 'приходить; come down — спускаться', down: 'вниз', looked: 'смотрел(а), искал(а) (look)', his: 'его',
+    store: 'магазин', warm: 'тёплый', cafe: 'кафе', too: 'тоже; слишком (too cold)', clean: 'убирать', mess: 'беспорядок',
+    get: 'get up — вставать; get there — добраться', there: 'там, туда', hours: 'часы (hour — час)', as: 'как', always: 'всегда', sleep: 'спать',
+    dear: 'дорогой, дорогая', holidays: 'праздники', next: 'следующий', wonderful: 'чудесный', favorite: 'любимый', bring: 'принести, привезти',
+    presents: 'подарки', everyone: 'все', forget: 'забыть', december: 'декабрь', snowed: 'шёл снег', wow: 'ого!', much: 'много; намного',
+    maybe: 'может быть', beautiful: 'красивый', true: 'правда', best: 'самый лучший', stay: 'оставаться; пребывание', warmer: 'теплее',
+    birthday: 'день рождения', about: 'о, про', learn: 'учить, узнавать', some: 'немного, несколько', words: 'слова', say: 'сказать',
+    spasibo: 'спасибо (по-русски)', people: 'люди', year: 'год', know: 'знать', any: 'какой-нибудь; (с not) никакой', talks: 'говорит (talk)',
+    remember: 'помнить', our: 'наш', anything: 'что-нибудь; (с not) ничего', only: 'только', knew: 'знал(а) (know)', stories: 'истории',
+    little: 'маленький; a little — немного', secret: 'секрет', landed: 'приземлился (land)', missed: 'скучали (miss)', something: 'что-нибудь',
+    receptionist: 'администратор', ivanova: 'Иванова (фамилия)', let: 'let me — позвольте мне', check: 'проверить; счёт', single: 'одноместный',
+    nights: 'ночи', sure: 'конечно', fifth: 'пятый', floor: 'этаж', enjoy: 'наслаждаться', clerk: 'продавец', looking: 'ищу; смотрю',
+    think: 'думать', one: 'один; this one — вот этот', fitting: 'fitting room — примерочная', over: 'over there — вон там', perfect: 'идеальный',
+    eighty: 'восемьдесят', dollars: 'доллары', sixty: 'шестьдесят', host: 'администратор (в ресторане)', "luigi's": 'Луиджи (название)',
+    "i'd": 'я бы (I would)', book: 'книга; to book — бронировать', table: 'стол, столик', many: 'много; how many — сколько', possible: 'возможно',
+    full: 'полный, занятый', name: 'имя', manager: 'руководитель', sit: 'сидеть; sit down — садиться', tell: 'рассказать', yourself: 'себя, о себе',
+    years: 'годы', company: 'компания', team: 'команда', things: 'вещи', questions: 'вопросы', start: 'начинать', mrs: 'миссис',
+    neighbor: 'сосед, соседка', weather: 'погода', "isn't": 'не (is not); isn’t it? — не так ли?', sunny: 'солнечно', hope: 'надеяться',
+    loud: 'громкий, шумный', all: 'все; not at all — совсем нет', cats: 'кошки', really: 'правда, действительно', their: 'их', names: 'имена',
+    milk: 'молоко (кличка)', cookie: 'печенье (кличка)', agent: 'сотрудник', afternoon: 'день (после полудня)', flying: 'летите (fly)',
+    may: 'можно (вежливо)', bags: 'сумки, багаж', problem: 'проблема', stays: 'остаётся (stay)', seat: 'место, сиденье', boarding: 'посадка',
+    gate: 'выход на посадку', "o'clock": 'часов (о времени)', "you're": 'ты, вы (you are)', "won't": 'не (will not)', "i'll": 'я (I will)',
+    "we're": 'мы (we are)', "can't": 'не могу', "didn't": 'не (did not)', "don't": 'не (do not)', "i'm": 'я (I am)', "it's": 'это (it is)', "that's": 'это (that is)',
+    snow: 'снег', sea: 'море', tickets: 'билеты', apartment: 'квартира', train: 'поезд', interview: 'собеседование',
+    great: 'отличный; здорово', were: 'были (are в прошлом)', did: 'вспомогательное слово прошлого (do)', him: 'его, ему', worry: 'волноваться',
+    dinner: 'ужин', cold: 'холодный; холодно', colder: 'холоднее', small: 'маленький', visit: 'навещать, посещать', buy: 'купить',
+    speak: 'говорить', will: 'будет (будущее время)', week: 'неделя', understand: 'понимать', talk: 'разговаривать', reservation: 'бронь',
+    breakfast: 'завтрак', help: 'помогать', try: 'пробовать; try on — примерить', if: 'если', n: 'буква N', live: 'жить', lee: 'Ли (фамилия)',
+    '5a': 'квартира 5A', '5b': 'квартира 5B', 'twenty two': 'двадцать два'
+  });
+  Object.assign(D.voices.story, { Receptionist: 'af_bella', Clerk: 'am_puck', Host: 'am_puck', Manager: 'am_fenrir', 'Mrs. Lee': 'af_sarah', Agent: 'af_nicole' });
+})(A.DATA);
+
+</script>
+<script>
+/* qrcode-generator 1.4.4 | Copyright (c) 2009 Kazuhiko Arase | MIT License | https://github.com/kazuhikoarase/qrcode-generator */
+var qrcode=function(){function i(t,r){function a(t,r){g=function(t){for(var r=new Array(t),e=0;e<t;e+=1){r[e]=new Array(t);for(var n=0;n<t;n+=1)r[e][n]=null}return r}(l=4*u+17),e(0,0),e(l-7,0),e(0,l-7),i(),o(),v(t,r),7<=u&&h(t),null==n&&(n=w(u,f,c)),d(n,r)}var u=t,f=y[r],g=null,l=0,n=null,c=[],s={},e=function(t,r){for(var e=-1;e<=7;e+=1)if(!(t+e<=-1||l<=t+e))for(var n=-1;n<=7;n+=1)r+n<=-1||l<=r+n||(g[t+e][r+n]=0<=e&&e<=6&&(0==n||6==n)||0<=n&&n<=6&&(0==e||6==e)||2<=e&&e<=4&&2<=n&&n<=4)},o=function(){for(var t=8;t<l-8;t+=1)null==g[t][6]&&(g[t][6]=t%2==0);for(var r=8;r<l-8;r+=1)null==g[6][r]&&(g[6][r]=r%2==0)},i=function(){for(var t=B.getPatternPosition(u),r=0;r<t.length;r+=1)for(var e=0;e<t.length;e+=1){var n=t[r],o=t[e];if(null==g[n][o])for(var i=-2;i<=2;i+=1)for(var a=-2;a<=2;a+=1)g[n+i][o+a]=-2==i||2==i||-2==a||2==a||0==i&&0==a}},h=function(t){for(var r=B.getBCHTypeNumber(u),e=0;e<18;e+=1){var n=!t&&1==(r>>e&1);g[Math.floor(e/3)][e%3+l-8-3]=n}for(e=0;e<18;e+=1){n=!t&&1==(r>>e&1);g[e%3+l-8-3][Math.floor(e/3)]=n}},v=function(t,r){for(var e=f<<3|r,n=B.getBCHTypeInfo(e),o=0;o<15;o+=1){var i=!t&&1==(n>>o&1);o<6?g[o][8]=i:o<8?g[o+1][8]=i:g[l-15+o][8]=i}for(o=0;o<15;o+=1){i=!t&&1==(n>>o&1);o<8?g[8][l-o-1]=i:o<9?g[8][15-o-1+1]=i:g[8][15-o-1]=i}g[l-8][8]=!t},d=function(t,r){for(var e=-1,n=l-1,o=7,i=0,a=B.getMaskFunction(r),u=l-1;0<u;u-=2)for(6==u&&(u-=1);;){for(var f=0;f<2;f+=1)if(null==g[n][u-f]){var c=!1;i<t.length&&(c=1==(t[i]>>>o&1)),a(n,u-f)&&(c=!c),g[n][u-f]=c,-1==(o-=1)&&(i+=1,o=7)}if((n+=e)<0||l<=n){n-=e,e=-e;break}}},w=function(t,r,e){for(var n=b.getRSBlocks(t,r),o=M(),i=0;i<e.length;i+=1){var a=e[i];o.put(a.getMode(),4),o.put(a.getLength(),B.getLengthInBits(a.getMode(),t)),a.write(o)}var u=0;for(i=0;i<n.length;i+=1)u+=n[i].dataCount;if(o.getLengthInBits()>8*u)throw"code length overflow. ("+o.getLengthInBits()+">"+8*u+")";for(o.getLengthInBits()+4<=8*u&&o.put(0,4);o.getLengthInBits()%8!=0;)o.putBit(!1);for(;!(o.getLengthInBits()>=8*u||(o.put(236,8),o.getLengthInBits()>=8*u));)o.put(17,8);return function(t,r){for(var e=0,n=0,o=0,i=new Array(r.length),a=new Array(r.length),u=0;u<r.length;u+=1){var f=r[u].dataCount,c=r[u].totalCount-f;n=Math.max(n,f),o=Math.max(o,c),i[u]=new Array(f);for(var g=0;g<i[u].length;g+=1)i[u][g]=255&t.getBuffer()[g+e];e+=f;var l=B.getErrorCorrectPolynomial(c),h=C(i[u],l.getLength()-1).mod(l);a[u]=new Array(l.getLength()-1);for(g=0;g<a[u].length;g+=1){var s=g+h.getLength()-a[u].length;a[u][g]=0<=s?h.getAt(s):0}}var v=0;for(g=0;g<r.length;g+=1)v+=r[g].totalCount;var d=new Array(v),w=0;for(g=0;g<n;g+=1)for(u=0;u<r.length;u+=1)g<i[u].length&&(d[w]=i[u][g],w+=1);for(g=0;g<o;g+=1)for(u=0;u<r.length;u+=1)g<a[u].length&&(d[w]=a[u][g],w+=1);return d}(o,n)};s.addData=function(t,r){var e=null;switch(r=r||"Byte"){case"Numeric":e=x(t);break;case"Alphanumeric":e=m(t);break;case"Byte":e=L(t);break;case"Kanji":e=D(t);break;default:throw"mode:"+r}c.push(e),n=null},s.isDark=function(t,r){if(t<0||l<=t||r<0||l<=r)throw t+","+r;return g[t][r]},s.getModuleCount=function(){return l},s.make=function(){if(u<1){for(var t=1;t<40;t++){for(var r=b.getRSBlocks(t,f),e=M(),n=0;n<c.length;n++){var o=c[n];e.put(o.getMode(),4),e.put(o.getLength(),B.getLengthInBits(o.getMode(),t)),o.write(e)}var i=0;for(n=0;n<r.length;n++)i+=r[n].dataCount;if(e.getLengthInBits()<=8*i)break}u=t}a(!1,function(){for(var t=0,r=0,e=0;e<8;e+=1){a(!0,e);var n=B.getLostPoint(s);(0==e||n<t)&&(t=n,r=e)}return r}())},s.createTableTag=function(t,r){t=t||2;var e="";e+='<table style="',e+=" border-width: 0px; border-style: none;",e+=" border-collapse: collapse;",e+=" padding: 0px; margin: "+(r=void 0===r?4*t:r)+"px;",e+='">',e+="<tbody>";for(var n=0;n<s.getModuleCount();n+=1){e+="<tr>";for(var o=0;o<s.getModuleCount();o+=1)e+='<td style="',e+=" border-width: 0px; border-style: none;",e+=" border-collapse: collapse;",e+=" padding: 0px; margin: 0px;",e+=" width: "+t+"px;",e+=" height: "+t+"px;",e+=" background-color: ",e+=s.isDark(n,o)?"#000000":"#ffffff",e+=";",e+='"/>';e+="</tr>"}return e+="</tbody>",e+="</table>"},s.createSvgTag=function(t,r,e,n){var o={};"object"==typeof t&&(t=(o=t).cellSize,r=o.margin,e=o.alt,n=o.title),t=t||2,r=void 0===r?4*t:r,(e="string"==typeof e?{text:e}:e||{}).text=e.text||null,e.id=e.text?e.id||"qrcode-description":null,(n="string"==typeof n?{text:n}:n||{}).text=n.text||null,n.id=n.text?n.id||"qrcode-title":null;var i,a,u,f,c=s.getModuleCount()*t+2*r,g="";for(f="l"+t+",0 0,"+t+" -"+t+",0 0,-"+t+"z ",g+='<svg version="1.1" xmlns="http://www.w3.org/2000/svg"',g+=o.scalable?"":' width="'+c+'px" height="'+c+'px"',g+=' viewBox="0 0 '+c+" "+c+'" ',g+=' preserveAspectRatio="xMinYMin meet"',g+=n.text||e.text?' role="img" aria-labelledby="'+p([n.id,e.id].join(" ").trim())+'"':"",g+=">",g+=n.text?'<title id="'+p(n.id)+'">'+p(n.text)+"</title>":"",g+=e.text?'<description id="'+p(e.id)+'">'+p(e.text)+"</description>":"",g+='<rect width="100%" height="100%" fill="white" cx="0" cy="0"/>',g+='<path d="',a=0;a<s.getModuleCount();a+=1)for(u=a*t+r,i=0;i<s.getModuleCount();i+=1)s.isDark(a,i)&&(g+="M"+(i*t+r)+","+u+f);return g+='" stroke="transparent" fill="black"/>',g+="</svg>"},s.createDataURL=function(o,t){o=o||2,t=void 0===t?4*o:t;var r=s.getModuleCount()*o+2*t,i=t,a=r-t;return I(r,r,function(t,r){if(i<=t&&t<a&&i<=r&&r<a){var e=Math.floor((t-i)/o),n=Math.floor((r-i)/o);return s.isDark(n,e)?0:1}return 1})},s.createImgTag=function(t,r,e){t=t||2,r=void 0===r?4*t:r;var n=s.getModuleCount()*t+2*r,o="";return o+="<img",o+=' src="',o+=s.createDataURL(t,r),o+='"',o+=' width="',o+=n,o+='"',o+=' height="',o+=n,o+='"',e&&(o+=' alt="',o+=p(e),o+='"'),o+="/>"};var p=function(t){for(var r="",e=0;e<t.length;e+=1){var n=t.charAt(e);switch(n){case"<":r+="&lt;";break;case">":r+="&gt;";break;case"&":r+="&amp;";break;case'"':r+="&quot;";break;default:r+=n}}return r};return s.createASCII=function(t,r){if((t=t||1)<2)return function(t){t=void 0===t?2:t;var r,e,n,o,i,a=1*s.getModuleCount()+2*t,u=t,f=a-t,c={"██":"█","█ ":"▀"," █":"▄","  ":" "},g={"██":"▀","█ ":"▀"," █":" ","  ":" "},l="";for(r=0;r<a;r+=2){for(n=Math.floor((r-u)/1),o=Math.floor((r+1-u)/1),e=0;e<a;e+=1)i="█",u<=e&&e<f&&u<=r&&r<f&&s.isDark(n,Math.floor((e-u)/1))&&(i=" "),u<=e&&e<f&&u<=r+1&&r+1<f&&s.isDark(o,Math.floor((e-u)/1))?i+=" ":i+="█",l+=t<1&&f<=r+1?g[i]:c[i];l+="\n"}return a%2&&0<t?l.substring(0,l.length-a-1)+Array(1+a).join("▀"):l.substring(0,l.length-1)}(r);t-=1,r=void 0===r?2*t:r;var e,n,o,i,a=s.getModuleCount()*t+2*r,u=r,f=a-r,c=Array(t+1).join("██"),g=Array(t+1).join("  "),l="",h="";for(e=0;e<a;e+=1){for(o=Math.floor((e-u)/t),h="",n=0;n<a;n+=1)i=1,u<=n&&n<f&&u<=e&&e<f&&s.isDark(o,Math.floor((n-u)/t))&&(i=0),h+=i?c:g;for(o=0;o<t;o+=1)l+=h+"\n"}return l.substring(0,l.length-1)},s.renderTo2dContext=function(t,r){r=r||2;for(var e=s.getModuleCount(),n=0;n<e;n++)for(var o=0;o<e;o++)t.fillStyle=s.isDark(n,o)?"black":"white",t.fillRect(n*r,o*r,r,r)},s}i.stringToBytes=(i.stringToBytesFuncs={default:function(t){for(var r=[],e=0;e<t.length;e+=1){var n=t.charCodeAt(e);r.push(255&n)}return r}}).default,i.createStringToBytes=function(u,f){var i=function(){function t(){var t=r.read();if(-1==t)throw"eof";return t}for(var r=S(u),e=0,n={};;){var o=r.read();if(-1==o)break;var i=t(),a=t()<<8|t();n[String.fromCharCode(o<<8|i)]=a,e+=1}if(e!=f)throw e+" != "+f;return n}(),a="?".charCodeAt(0);return function(t){for(var r=[],e=0;e<t.length;e+=1){var n=t.charCodeAt(e);if(n<128)r.push(n);else{var o=i[t.charAt(e)];"number"==typeof o?(255&o)==o?r.push(o):(r.push(o>>>8),r.push(255&o)):r.push(a)}}return r}};var r,t,a=1,u=2,o=4,f=8,y={L:1,M:0,Q:3,H:2},e=0,n=1,c=2,g=3,l=4,h=5,s=6,v=7,B=(r=[[],[6,18],[6,22],[6,26],[6,30],[6,34],[6,22,38],[6,24,42],[6,26,46],[6,28,50],[6,30,54],[6,32,58],[6,34,62],[6,26,46,66],[6,26,48,70],[6,26,50,74],[6,30,54,78],[6,30,56,82],[6,30,58,86],[6,34,62,90],[6,28,50,72,94],[6,26,50,74,98],[6,30,54,78,102],[6,28,54,80,106],[6,32,58,84,110],[6,30,58,86,114],[6,34,62,90,118],[6,26,50,74,98,122],[6,30,54,78,102,126],[6,26,52,78,104,130],[6,30,56,82,108,134],[6,34,60,86,112,138],[6,30,58,86,114,142],[6,34,62,90,118,146],[6,30,54,78,102,126,150],[6,24,50,76,102,128,154],[6,28,54,80,106,132,158],[6,32,58,84,110,136,162],[6,26,54,82,110,138,166],[6,30,58,86,114,142,170]],(t={}).getBCHTypeInfo=function(t){for(var r=t<<10;0<=d(r)-d(1335);)r^=1335<<d(r)-d(1335);return 21522^(t<<10|r)},t.getBCHTypeNumber=function(t){for(var r=t<<12;0<=d(r)-d(7973);)r^=7973<<d(r)-d(7973);return t<<12|r},t.getPatternPosition=function(t){return r[t-1]},t.getMaskFunction=function(t){switch(t){case e:return function(t,r){return(t+r)%2==0};case n:return function(t,r){return t%2==0};case c:return function(t,r){return r%3==0};case g:return function(t,r){return(t+r)%3==0};case l:return function(t,r){return(Math.floor(t/2)+Math.floor(r/3))%2==0};case h:return function(t,r){return t*r%2+t*r%3==0};case s:return function(t,r){return(t*r%2+t*r%3)%2==0};case v:return function(t,r){return(t*r%3+(t+r)%2)%2==0};default:throw"bad maskPattern:"+t}},t.getErrorCorrectPolynomial=function(t){for(var r=C([1],0),e=0;e<t;e+=1)r=r.multiply(C([1,w.gexp(e)],0));return r},t.getLengthInBits=function(t,r){if(1<=r&&r<10)switch(t){case a:return 10;case u:return 9;case o:case f:return 8;default:throw"mode:"+t}else if(r<27)switch(t){case a:return 12;case u:return 11;case o:return 16;case f:return 10;default:throw"mode:"+t}else{if(!(r<41))throw"type:"+r;switch(t){case a:return 14;case u:return 13;case o:return 16;case f:return 12;default:throw"mode:"+t}}},t.getLostPoint=function(t){for(var r=t.getModuleCount(),e=0,n=0;n<r;n+=1)for(var o=0;o<r;o+=1){for(var i=0,a=t.isDark(n,o),u=-1;u<=1;u+=1)if(!(n+u<0||r<=n+u))for(var f=-1;f<=1;f+=1)o+f<0||r<=o+f||0==u&&0==f||a==t.isDark(n+u,o+f)&&(i+=1);5<i&&(e+=3+i-5)}for(n=0;n<r-1;n+=1)for(o=0;o<r-1;o+=1){var c=0;t.isDark(n,o)&&(c+=1),t.isDark(n+1,o)&&(c+=1),t.isDark(n,o+1)&&(c+=1),t.isDark(n+1,o+1)&&(c+=1),0!=c&&4!=c||(e+=3)}for(n=0;n<r;n+=1)for(o=0;o<r-6;o+=1)t.isDark(n,o)&&!t.isDark(n,o+1)&&t.isDark(n,o+2)&&t.isDark(n,o+3)&&t.isDark(n,o+4)&&!t.isDark(n,o+5)&&t.isDark(n,o+6)&&(e+=40);for(o=0;o<r;o+=1)for(n=0;n<r-6;n+=1)t.isDark(n,o)&&!t.isDark(n+1,o)&&t.isDark(n+2,o)&&t.isDark(n+3,o)&&t.isDark(n+4,o)&&!t.isDark(n+5,o)&&t.isDark(n+6,o)&&(e+=40);var g=0;for(o=0;o<r;o+=1)for(n=0;n<r;n+=1)t.isDark(n,o)&&(g+=1);return e+=Math.abs(100*g/r/r-50)/5*10},t);function d(t){for(var r=0;0!=t;)r+=1,t>>>=1;return r}var w=function(){for(var r=new Array(256),e=new Array(256),t=0;t<8;t+=1)r[t]=1<<t;for(t=8;t<256;t+=1)r[t]=r[t-4]^r[t-5]^r[t-6]^r[t-8];for(t=0;t<255;t+=1)e[r[t]]=t;var n={glog:function(t){if(t<1)throw"glog("+t+")";return e[t]},gexp:function(t){for(;t<0;)t+=255;for(;256<=t;)t-=255;return r[t]}};return n}();function C(n,o){if(void 0===n.length)throw n.length+"/"+o;var r=function(){for(var t=0;t<n.length&&0==n[t];)t+=1;for(var r=new Array(n.length-t+o),e=0;e<n.length-t;e+=1)r[e]=n[e+t];return r}(),i={getAt:function(t){return r[t]},getLength:function(){return r.length},multiply:function(t){for(var r=new Array(i.getLength()+t.getLength()-1),e=0;e<i.getLength();e+=1)for(var n=0;n<t.getLength();n+=1)r[e+n]^=w.gexp(w.glog(i.getAt(e))+w.glog(t.getAt(n)));return C(r,0)},mod:function(t){if(i.getLength()-t.getLength()<0)return i;for(var r=w.glog(i.getAt(0))-w.glog(t.getAt(0)),e=new Array(i.getLength()),n=0;n<i.getLength();n+=1)e[n]=i.getAt(n);for(n=0;n<t.getLength();n+=1)e[n]^=w.gexp(w.glog(t.getAt(n))+r);return C(e,0).mod(t)}};return i}function p(){var e=[],o={writeByte:function(t){e.push(255&t)},writeShort:function(t){o.writeByte(t),o.writeByte(t>>>8)},writeBytes:function(t,r,e){r=r||0,e=e||t.length;for(var n=0;n<e;n+=1)o.writeByte(t[n+r])},writeString:function(t){for(var r=0;r<t.length;r+=1)o.writeByte(t.charCodeAt(r))},toByteArray:function(){return e},toString:function(){var t="";t+="[";for(var r=0;r<e.length;r+=1)0<r&&(t+=","),t+=e[r];return t+="]"}};return o}var k,A,b=(k=[[1,26,19],[1,26,16],[1,26,13],[1,26,9],[1,44,34],[1,44,28],[1,44,22],[1,44,16],[1,70,55],[1,70,44],[2,35,17],[2,35,13],[1,100,80],[2,50,32],[2,50,24],[4,25,9],[1,134,108],[2,67,43],[2,33,15,2,34,16],[2,33,11,2,34,12],[2,86,68],[4,43,27],[4,43,19],[4,43,15],[2,98,78],[4,49,31],[2,32,14,4,33,15],[4,39,13,1,40,14],[2,121,97],[2,60,38,2,61,39],[4,40,18,2,41,19],[4,40,14,2,41,15],[2,146,116],[3,58,36,2,59,37],[4,36,16,4,37,17],[4,36,12,4,37,13],[2,86,68,2,87,69],[4,69,43,1,70,44],[6,43,19,2,44,20],[6,43,15,2,44,16],[4,101,81],[1,80,50,4,81,51],[4,50,22,4,51,23],[3,36,12,8,37,13],[2,116,92,2,117,93],[6,58,36,2,59,37],[4,46,20,6,47,21],[7,42,14,4,43,15],[4,133,107],[8,59,37,1,60,38],[8,44,20,4,45,21],[12,33,11,4,34,12],[3,145,115,1,146,116],[4,64,40,5,65,41],[11,36,16,5,37,17],[11,36,12,5,37,13],[5,109,87,1,110,88],[5,65,41,5,66,42],[5,54,24,7,55,25],[11,36,12,7,37,13],[5,122,98,1,123,99],[7,73,45,3,74,46],[15,43,19,2,44,20],[3,45,15,13,46,16],[1,135,107,5,136,108],[10,74,46,1,75,47],[1,50,22,15,51,23],[2,42,14,17,43,15],[5,150,120,1,151,121],[9,69,43,4,70,44],[17,50,22,1,51,23],[2,42,14,19,43,15],[3,141,113,4,142,114],[3,70,44,11,71,45],[17,47,21,4,48,22],[9,39,13,16,40,14],[3,135,107,5,136,108],[3,67,41,13,68,42],[15,54,24,5,55,25],[15,43,15,10,44,16],[4,144,116,4,145,117],[17,68,42],[17,50,22,6,51,23],[19,46,16,6,47,17],[2,139,111,7,140,112],[17,74,46],[7,54,24,16,55,25],[34,37,13],[4,151,121,5,152,122],[4,75,47,14,76,48],[11,54,24,14,55,25],[16,45,15,14,46,16],[6,147,117,4,148,118],[6,73,45,14,74,46],[11,54,24,16,55,25],[30,46,16,2,47,17],[8,132,106,4,133,107],[8,75,47,13,76,48],[7,54,24,22,55,25],[22,45,15,13,46,16],[10,142,114,2,143,115],[19,74,46,4,75,47],[28,50,22,6,51,23],[33,46,16,4,47,17],[8,152,122,4,153,123],[22,73,45,3,74,46],[8,53,23,26,54,24],[12,45,15,28,46,16],[3,147,117,10,148,118],[3,73,45,23,74,46],[4,54,24,31,55,25],[11,45,15,31,46,16],[7,146,116,7,147,117],[21,73,45,7,74,46],[1,53,23,37,54,24],[19,45,15,26,46,16],[5,145,115,10,146,116],[19,75,47,10,76,48],[15,54,24,25,55,25],[23,45,15,25,46,16],[13,145,115,3,146,116],[2,74,46,29,75,47],[42,54,24,1,55,25],[23,45,15,28,46,16],[17,145,115],[10,74,46,23,75,47],[10,54,24,35,55,25],[19,45,15,35,46,16],[17,145,115,1,146,116],[14,74,46,21,75,47],[29,54,24,19,55,25],[11,45,15,46,46,16],[13,145,115,6,146,116],[14,74,46,23,75,47],[44,54,24,7,55,25],[59,46,16,1,47,17],[12,151,121,7,152,122],[12,75,47,26,76,48],[39,54,24,14,55,25],[22,45,15,41,46,16],[6,151,121,14,152,122],[6,75,47,34,76,48],[46,54,24,10,55,25],[2,45,15,64,46,16],[17,152,122,4,153,123],[29,74,46,14,75,47],[49,54,24,10,55,25],[24,45,15,46,46,16],[4,152,122,18,153,123],[13,74,46,32,75,47],[48,54,24,14,55,25],[42,45,15,32,46,16],[20,147,117,4,148,118],[40,75,47,7,76,48],[43,54,24,22,55,25],[10,45,15,67,46,16],[19,148,118,6,149,119],[18,75,47,31,76,48],[34,54,24,34,55,25],[20,45,15,61,46,16]],(A={}).getRSBlocks=function(t,r){var e=function(t,r){switch(r){case y.L:return k[4*(t-1)+0];case y.M:return k[4*(t-1)+1];case y.Q:return k[4*(t-1)+2];case y.H:return k[4*(t-1)+3];default:return}}(t,r);if(void 0===e)throw"bad rs block @ typeNumber:"+t+"/errorCorrectionLevel:"+r;for(var n,o,i=e.length/3,a=[],u=0;u<i;u+=1)for(var f=e[3*u+0],c=e[3*u+1],g=e[3*u+2],l=0;l<f;l+=1)a.push((n=g,o=void 0,(o={}).totalCount=c,o.dataCount=n,o));return a},A),M=function(){var e=[],n=0,o={getBuffer:function(){return e},getAt:function(t){var r=Math.floor(t/8);return 1==(e[r]>>>7-t%8&1)},put:function(t,r){for(var e=0;e<r;e+=1)o.putBit(1==(t>>>r-e-1&1))},getLengthInBits:function(){return n},putBit:function(t){var r=Math.floor(n/8);e.length<=r&&e.push(0),t&&(e[r]|=128>>>n%8),n+=1}};return o},x=function(t){var r=a,n=t,e={getMode:function(){return r},getLength:function(t){return n.length},write:function(t){for(var r=n,e=0;e+2<r.length;)t.put(o(r.substring(e,e+3)),10),e+=3;e<r.length&&(r.length-e==1?t.put(o(r.substring(e,e+1)),4):r.length-e==2&&t.put(o(r.substring(e,e+2)),7))}},o=function(t){for(var r=0,e=0;e<t.length;e+=1)r=10*r+i(t.charAt(e));return r},i=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);throw"illegal char :"+t};return e},m=function(t){var r=u,n=t,e={getMode:function(){return r},getLength:function(t){return n.length},write:function(t){for(var r=n,e=0;e+1<r.length;)t.put(45*o(r.charAt(e))+o(r.charAt(e+1)),11),e+=2;e<r.length&&t.put(o(r.charAt(e)),6)}},o=function(t){if("0"<=t&&t<="9")return t.charCodeAt(0)-"0".charCodeAt(0);if("A"<=t&&t<="Z")return t.charCodeAt(0)-"A".charCodeAt(0)+10;switch(t){case" ":return 36;case"$":return 37;case"%":return 38;case"*":return 39;case"+":return 40;case"-":return 41;case".":return 42;case"/":return 43;case":":return 44;default:throw"illegal char :"+t}};return e},L=function(t){var r=o,e=i.stringToBytes(t),n={getMode:function(){return r},getLength:function(t){return e.length},write:function(t){for(var r=0;r<e.length;r+=1)t.put(e[r],8)}};return n},D=function(t){var r=f,e=i.stringToBytesFuncs.SJIS;if(!e)throw"sjis not supported.";!function(){var t=e("友");if(2!=t.length||38726!=(t[0]<<8|t[1]))throw"sjis not supported."}();var o=e(t),n={getMode:function(){return r},getLength:function(t){return~~(o.length/2)},write:function(t){for(var r=o,e=0;e+1<r.length;){var n=(255&r[e])<<8|255&r[e+1];if(33088<=n&&n<=40956)n-=33088;else{if(!(57408<=n&&n<=60351))throw"illegal char at "+(e+1)+"/"+n;n-=49472}n=192*(n>>>8&255)+(255&n),t.put(n,13),e+=2}if(e<r.length)throw"illegal char at "+(e+1)}};return n},S=function(t){var e=t,n=0,o=0,i=0,r={read:function(){for(;i<8;){if(n>=e.length){if(0==i)return-1;throw"unexpected end of file./"+i}var t=e.charAt(n);if(n+=1,"="==t)return i=0,-1;t.match(/^\s$/)||(o=o<<6|a(t.charCodeAt(0)),i+=6)}var r=o>>>i-8&255;return i-=8,r}},a=function(t){if(65<=t&&t<=90)return t-65;if(97<=t&&t<=122)return t-97+26;if(48<=t&&t<=57)return t-48+52;if(43==t)return 62;if(47==t)return 63;throw"c:"+t};return r},I=function(t,r,e){for(var n=function(t,r){var n=t,o=r,l=new Array(t*r),e={setPixel:function(t,r,e){l[r*n+t]=e},write:function(t){t.writeString("GIF87a"),t.writeShort(n),t.writeShort(o),t.writeByte(128),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(0),t.writeByte(255),t.writeByte(255),t.writeByte(255),t.writeString(","),t.writeShort(0),t.writeShort(0),t.writeShort(n),t.writeShort(o),t.writeByte(0);var r=i(2);t.writeByte(2);for(var e=0;255<r.length-e;)t.writeByte(255),t.writeBytes(r,e,255),e+=255;t.writeByte(r.length-e),t.writeBytes(r,e,r.length-e),t.writeByte(0),t.writeString(";")}},i=function(t){for(var r=1<<t,e=1+(1<<t),n=t+1,o=h(),i=0;i<r;i+=1)o.add(String.fromCharCode(i));o.add(String.fromCharCode(r)),o.add(String.fromCharCode(e));var a=p(),u=function(t){var e=t,n=0,o=0,r={write:function(t,r){if(t>>>r!=0)throw"length over";for(;8<=n+r;)e.writeByte(255&(t<<n|o)),r-=8-n,t>>>=8-n,n=o=0;o|=t<<n,n+=r},flush:function(){0<n&&e.writeByte(o)}};return r}(a);u.write(r,n);var f=0,c=String.fromCharCode(l[f]);for(f+=1;f<l.length;){var g=String.fromCharCode(l[f]);f+=1,o.contains(c+g)?c+=g:(u.write(o.indexOf(c),n),o.size()<4095&&(o.size()==1<<n&&(n+=1),o.add(c+g)),c=g)}return u.write(o.indexOf(c),n),u.write(e,n),u.flush(),a.toByteArray()},h=function(){var r={},e=0,n={add:function(t){if(n.contains(t))throw"dup key:"+t;r[t]=e,e+=1},size:function(){return e},indexOf:function(t){return r[t]},contains:function(t){return void 0!==r[t]}};return n};return e}(t,r),o=0;o<r;o+=1)for(var i=0;i<t;i+=1)n.setPixel(i,o,e(i,o));var a=p();n.write(a);for(var u=function(){function e(t){a+=String.fromCharCode(r(63&t))}var n=0,o=0,i=0,a="",t={},r=function(t){if(t<0);else{if(t<26)return 65+t;if(t<52)return t-26+97;if(t<62)return t-52+48;if(62==t)return 43;if(63==t)return 47}throw"n:"+t};return t.writeByte=function(t){for(n=n<<8|255&t,o+=8,i+=1;6<=o;)e(n>>>o-6),o-=6},t.flush=function(){if(0<o&&(e(n<<6-o),o=n=0),i%3!=0)for(var t=3-i%3,r=0;r<t;r+=1)a+="="},t.toString=function(){return a},t}(),f=a.toByteArray(),c=0;c<f.length;c+=1)u.writeByte(f[c]);return u.flush(),"data:image/gif;base64,"+u};return i}();qrcode.stringToBytesFuncs["UTF-8"]=function(t){return function(t){for(var r=[],e=0;e<t.length;e++){var n=t.charCodeAt(e);n<128?r.push(n):n<2048?r.push(192|n>>6,128|63&n):n<55296||57344<=n?r.push(224|n>>12,128|n>>6&63,128|63&n):(e++,n=65536+((1023&n)<<10|1023&t.charCodeAt(e)),r.push(240|n>>18,128|n>>12&63,128|n>>6&63,128|63&n))}return r}(t)},function(t){"function"==typeof define&&define.amd?define([],t):"object"==typeof exports&&(module.exports=t())}(function(){return qrcode});
+</script>
+<script>
+'use strict';
 // Builds the course: resolves item references, assigns each item to the unit where it first
 // appears, and splits units into lessons.
 (function (A) {
@@ -2340,8 +3242,10 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     read: { name: 'Чтение', color: 'var(--read)' },
     talk: { name: 'Разговор', color: 'var(--talk)' },
     gram: { name: 'Грамматика', color: 'var(--gram)' },
-    story: { name: 'Истории', color: 'var(--story)' }
+    story: { name: 'Истории', color: 'var(--story)' },
+    dial: { name: 'Диалоги', color: 'var(--dial)' }
   };
+  const isStoryLine = line => line === 'story' || line === 'dial';
 
   function nameItem(letter) {
     return {
@@ -2380,7 +3284,7 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
       // Content files describe lessons in u.lessons (explicit groups) or u.items (auto-split)
       const authored = u.authored || (u.authored = Array.isArray(u.lessons) ? u.lessons : (u.items ? chunk(u.items, u.size || 4) : []));
       u.lessons = [];
-      if (u.line === 'story') {
+      if (isStoryLine(u.line)) {
         u.lessons.push({ key: u.id + ':0', unit: u, idx: 0, title: D.stories[u.story].title, story: u.story, newIds: [], refIds: [] });
       } else {
         authored.forEach((def, li) => {
@@ -2417,7 +3321,8 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     const w = A.U.norm(word);
     if (!w) return '';
     if (C.lexicon[w]) return C.lexicon[w];
-    const stems = [w.replace(/'s$/, ''), w.replace(/s$/, ''), w.replace(/es$/, ''), w.replace(/ies$/, 'y')];
+    const stems = [w.replace(/'s$/, ''), w.replace(/s$/, ''), w.replace(/es$/, ''), w.replace(/ies$/, 'y'),
+      w.replace(/ed$/, ''), w.replace(/d$/, ''), w.replace(/ied$/, 'y'), w.replace(/ing$/, ''), w.replace(/ing$/, 'e'), w.replace(/er$/, '')];
     for (const s of stems) if (s && C.lexicon[s]) return C.lexicon[s];
     return '';
   };
@@ -2426,7 +3331,8 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
   C.lessonDone = key => !!S().lessons[key];
   C.unitDoneCount = u => u.lessons.filter(l => C.lessonDone(l.key)).length;
   C.unitComplete = u => u.lessons.every(l => C.lessonDone(l.key));
-  C.unitUnlocked = u => S().settings.openAll || u.index === 0 || C.unitComplete(C.units[u.index - 1]);
+  // A unit stays open once any of its lessons is done (course updates may add lessons to earlier units)
+  C.unitUnlocked = u => S().settings.openAll || u.index === 0 || C.unitComplete(C.units[u.index - 1]) || C.unitDoneCount(u) > 0;
   C.lessonUnlocked = l => {
     if (!C.unitUnlocked(l.unit)) return false;
     if (S().settings.openAll) return true;
@@ -2515,6 +3421,9 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     { id: 's30', mark: '30', t: 'Месяц', d: 'Серия из 30 дней', test: s => s.stats.best >= 30 },
     { id: 'r10', mark: '×10', t: 'Повторение', d: '10 сессий повторения', test: s => s.stats.reviews >= 10 },
     { id: 'voice', mark: 'Mic', t: 'Голос', d: '10 раз сказали фразу вслух', test: s => s.stats.spoken >= 10 },
+    { id: 'dialog', mark: '⇄', t: 'Собеседник', d: 'Пройден первый диалог', test: s => (s.stats.dialogs || 0) >= 1 },
+    { id: 'ai', mark: 'AI', t: 'Разговорчивый', d: '20 сообщений в разговоре с ИИ', test: s => (s.stats.aiMessages || 0) >= 20 },
+    { id: 'past', mark: 'was', t: 'Прошлое', d: 'Пройдена зона «Рассказываю о прошлом»', test: () => A.Course.units.filter(u => u.zone === 4).every(A.Course.unitComplete) },
     { id: 'finish', mark: 'NY', t: 'Нью-Йорк', d: 'Пройден весь маршрут', test: () => A.Course.units.every(A.Course.unitComplete) }
   ];
 
@@ -2538,8 +3447,9 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
 <script>
 'use strict';
 // Exercise builders. Each builder returns an object:
-//   { title, view(api) -> Node, check() -> {ok}, autoplay?, sayAfter?, fb?, auto? }
+//   { title, view(api) -> Node, check() -> {ok, why?}, autoplay?, sayAfter?, fb?, auto? }
 // api.ready(bool) enables the Check button; api.done(result) finishes exercises without it.
+// `why` explains a wrong answer (elaborated feedback), not just the right one.
 (function (A) {
   const U = A.U, h = U.h;
   const C = A.Course, Sp = A.Speech;
@@ -2549,7 +3459,8 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
   const HOMO = [['see', 'sea'], ['be', 'bee'], ['to', 'two', 'too'], ['here', 'hear'], ['no', 'know'], ['right', 'write'],
     ['for', 'four'], ['one', 'won'], ['son', 'sun'], ['eight', 'ate'], ['meat', 'meet'], ['by', 'bye', 'buy'], ['i', 'eye'],
     ['tea', 'tee'], ['there', 'their'], ['our', 'hour'], ['red', 'read'], ['wait', 'weight'], ['mail', 'male'], ['road', 'rode'],
-    ['nose', 'knows'], ['rose', 'rows'], ['cell', 'sell'], ['ant', 'aunt'], ['cent', 'sent'], ['sum', 'some'], ['night', 'knight'], ['plane', 'plain']];
+    ['nose', 'knows'], ['rose', 'rows'], ['cell', 'sell'], ['ant', 'aunt'], ['cent', 'sent'], ['sum', 'some'], ['night', 'knight'], ['plane', 'plain'],
+    ['made', 'maid'], ['sale', 'sail'], ['week', 'weak'], ['new', 'knew'], ['dear', 'deer']];
   const homoOf = {};
   HOMO.forEach(g => g.forEach(w => { homoOf[w] = g; }));
   const isHomo = (a, b) => { const g = homoOf[String(a).toLowerCase()]; return !!g && g.includes(String(b).toLowerCase()); };
@@ -2561,6 +3472,8 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
   const LETTER_CONF = { b: 'dpq', d: 'bpq', p: 'qbd', q: 'pgd', n: 'umh', u: 'nvy', m: 'nw', w: 'mv', i: 'ljt', l: 'ijt', j: 'ig', g: 'qj', h: 'nk', v: 'uwy', y: 'vj', e: 'ca', a: 'eo', o: 'ac', c: 'eo', r: 'nt', t: 'lf', f: 'tl', s: 'zc', z: 'sx', x: 'zk', k: 'xh' };
   const NAME_CONF = { A: 'ERHI', B: 'VDPE', C: 'SZKE', D: 'BTEG', E: 'IAYG', F: 'SVHX', G: 'JZDE', H: 'AKEX', I: 'EYAR', J: 'GAKY', K: 'QCAJ', L: 'MNEF', M: 'NLE', N: 'MLE', O: 'UAQ', P: 'BTDE', Q: 'KUCW', R: 'AEIO', S: 'FXCZ', T: 'DPEB', U: 'YWQO', V: 'BZWE', W: 'VYUD', X: 'SKZE', Y: 'WIUE', Z: 'CGSE' };
   const GRAPHEMES = ['igh', 'sh', 'ch', 'th', 'ck', 'ng', 'ee', 'ea', 'oo', 'ai', 'ay', 'oa', 'ow', 'ou', 'ar', 'or', 'er', 'ir', 'ur', 'qu'];
+  // Exercise types that need sound or a microphone (skipped in "can't listen now" mode)
+  const AUDIO_TYPES = new Set(['listen_pick_pic', 'listen_pick_word', 'listen_pick_meaning', 'listen_build', 'minimal', 'name_listen', 'spell_listen', 'letter_listen', 'speak', 'shadow']);
 
   X.nameSay = ch => ch.toUpperCase() + '.';
 
@@ -2584,25 +3497,99 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
   function audioRow(text, opt) { return h('div', { class: 'audio-row' }, auBtn(text, opt), slowBtn(text, opt)); }
   X.auBtn = auBtn;
   X.slowBtn = slowBtn;
+  X.audioRow = audioRow;
   function picNode(pic) { return h('div', { class: 'pic' + (U.isTextPic(pic) ? ' txt' : '') }, pic); }
   X.picNode = picNode;
   const sizeCls = t => t.length > 22 ? ' sm' : t.length > 9 ? ' md' : '';
   function wordNode(t) { return h('div', { class: 'bigword en' + sizeCls(t) }, t); }
   const fbOf = it => ({ en: it.en, ru: it.ru });
   const family = k => (k === 'phrase' || k === 'sent') ? ['phrase', 'sent'] : [k];
+  const esc = U.escape;
 
   const tokenize = U.tokenize;
 
+  // ---------- explanations for wrong answers ----------
+  let graphHints = null;
+  function graphHint(g) {
+    if (!graphHints) {
+      graphHints = {};
+      Object.values(A.DATA.letters).forEach(L => {
+        if (L.id === 'L_y_end' || L.id === 'L_ow2' || L.id === 'L_er') return;
+        const text = L.hint.replace(/<[^>]+>/g, '');
+        graphHints[L.ch] = text.split(/(?<=[.!])\s/)[0];
+      });
+    }
+    return graphHints[g] || '';
+  }
+  // Where two spellings differ, and what the right letters sound like
+  function diffHint(right, picked) {
+    const a = right.toLowerCase(), b = picked.toLowerCase();
+    let i = 0;
+    while (i < a.length && i < b.length && a[i] === b[i]) i++;
+    let j = 0;
+    while (j < a.length - i && j < b.length - i && a[a.length - 1 - j] === b[b.length - 1 - j]) j++;
+    const pa = a.slice(i, a.length - j), pb = b.slice(i, b.length - j);
+    if (!pa && !pb) return '';
+    const hint = graphHint(pa);
+    return 'Разница: <b class="en">' + esc(pa || '—') + '</b> вместо <span class="en">' + esc(pb || '—') + '</span>.' + (hint ? ' «' + esc(pa) + '»: ' + esc(hint) : '');
+  }
+  function wordWhy(right, picked) {
+    const it = C.items['w:' + picked.toLowerCase()];
+    const meaning = it ? '«' + esc(picked) + '» — ' + esc(it.ru) + '. ' : 'Слова «' + esc(picked) + '» нет. ';
+    return meaning + diffHint(right, picked);
+  }
+  const itemWhy = x => '«<span class="en">' + esc(x.en) + '</span>» — ' + esc(x.ru) + '.';
+  const ruWhy = x => '«' + esc(x.ru) + '» по-английски — «<span class="en">' + esc(x.en) + '</span>».';
+  function whyWord(w) {
+    const W = A.DATA.why || {};
+    return W[String(w).toLowerCase()] || '';
+  }
+  // Why the chosen word does not fit the gap, and why the right one does
+  function gapWhy(picked, right) {
+    const p = picked.toLowerCase(), r = right.toLowerCase();
+    let a = whyWord(p), b = whyWord(r);
+    const related = p.slice(0, 3) === r.slice(0, 3);
+    if (!a && related) {
+      if (/ing$/.test(p)) a = '<b>' + esc(p) + '</b> — форма «прямо сейчас» (I am ' + esc(p) + '). Здесь она не подходит.';
+      else if (p.indexOf('more ') === 0) a = 'С короткими словами more не нужен: говорят <b>' + esc(r) + '</b>.';
+      else if (/er$/.test(r) && !/er$/.test(p)) a = '<b>' + esc(p) + '</b> — без сравнения. Сравнивая, говорят <b>' + esc(r) + '</b> than.';
+      else if (/ed$/.test(p) && !/ed$/.test(r)) a = '<b>' + esc(p) + '</b> — прошедшее время. Здесь нужна другая форма.';
+      else if (/s$/.test(p) && !/s$/.test(r)) a = '<b>' + esc(p) + '</b> — форма с -s: только с he, she, it и одним человеком.';
+      else if (/s$/.test(r) && !/s$/.test(p)) a = '<b>' + esc(p) + '</b> — без -s: так говорят с I, you, we, they.';
+      else if (/ed$/.test(r)) a = '<b>' + esc(p) + '</b> — настоящее время, а речь о прошлом (yesterday): нужно -ed.';
+    }
+    if (!b && related) {
+      if (/s$/.test(r) && !/s$/.test(p)) b = 'С he, she, it и одним человеком глагол получает <b>-s</b>: ' + esc(r) + '.';
+      else if (/ed$/.test(r)) b = 'О прошлом: <b>' + esc(r) + '</b>.';
+      else if (/s$/.test(p)) b = 'С I, you, we, they — без -s: <b>' + esc(r) + '</b>.';
+    }
+    if (!a && !b) return '';
+    return (a ? 'Вы выбрали «<span class="en">' + esc(picked) + '</span>»: ' + a.replace(/^<b>[^<]+<\/b> — /, '') + ' ' : '') + (b ? 'Здесь нужно: ' + b : '');
+  }
+  X.gapWhy = gapWhy;
+
   // ---------- distractors ----------
+  // Candidates for wrong options: items the learner has already met first, then this lesson's items, then the rest
   function pool(item, ctx, test) {
     const out = [], seen = new Set([item.id]);
     const push = it => { if (it && !seen.has(it.id) && test(it)) { seen.add(it.id); out.push(it); } };
+    if (ctx.learned) U.shuffle(Array.from(ctx.learned)).forEach(id => push(C.items[id]));
     U.shuffle(ctx.knownIds).forEach(id => push(C.items[id]));
     const maxU = ctx.unitIndex == null ? 999 : ctx.unitIndex + 1;
     const rest = U.shuffle(C.list);
     rest.forEach(it => { const ui = C.unitIndex[it.unit]; if (ui != null && ui <= maxU) push(it); });
     rest.forEach(push);
     return out;
+  }
+  // Two items with the same translation (home / house — «дом») must not both be offered: either answer would be right
+  function meanings(ru) {
+    return String(ru || '').toLowerCase().replace(/ё/g, 'е').split(/[,;/]/)
+      .map(p => p.replace(/[^а-яa-z ]+/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean);
+  }
+  function sameMeaning(a, b) {
+    const A1 = meanings(a.ru), B1 = meanings(b.ru);
+    return A1.some(x => B1.some(y => x === y ||
+      (!x.includes(' ') && y.split(' ')[0] === x) || (!y.includes(' ') && x.split(' ')[0] === y)));
   }
   function distract(item, ctx, n, test, key) {
     const used = new Set([key(item)]);
@@ -2611,6 +3598,8 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
       const k = key(it);
       if (!k || used.has(k)) continue;
       if (item.en && it.en && isHomo(item.en, it.en)) continue;
+      if (item.ru && it.ru && sameMeaning(item, it)) continue;
+      if (res.some(r => r.ru && it.ru && sameMeaning(r, it))) continue;
       used.add(k);
       res.push(it);
       if (res.length >= n) break;
@@ -2676,10 +3665,19 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
   }
 
   // ---------- generic exercise shapes ----------
+  function muteBtn(api) {
+    return h('button', {
+      class: 'btn ghost sm', type: 'button',
+      onclick: () => { Sp.mute(15); api.done({ skip: true, msg: 'Хорошо: 15 минут без звука. Задания на слух пока пропускаем.' }); }
+    }, 'Не могу слушать сейчас');
+  }
+
   function choice(o) {
     let sel = -1, btns = [];
     return {
       title: o.title, autoplay: o.autoplay, autoplayOpt: o.autoplayOpt, fb: o.fb, sayAfter: o.sayAfter,
+      // the right option and option texts (used by the automated course check)
+      answer: o.correct, labels: o.options.map(op => op.text || (typeof op.label === 'string' ? op.label : '')),
       view(api) {
         btns = o.options.map((op, i) => h('button', {
           class: 'opt ' + op.cls, type: 'button',
@@ -2691,7 +3689,7 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
             api.ready(true);
           }
         }, op.label));
-        return h('div', { class: 'ex' }, o.prompt, h('div', { class: 'opts' + (o.list ? ' list' : '') }, btns));
+        return h('div', { class: 'ex' }, o.prompt, h('div', { class: 'opts' + (o.list ? ' list' : '') }, btns), o.listen ? muteBtn(api) : null);
       },
       check() {
         const ok = sel === o.correct;
@@ -2701,7 +3699,7 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
           b.classList.add(j === o.correct ? 'ok' : j === sel ? 'bad' : 'dim');
         });
         if (o.onCheck) o.onCheck(ok);
-        return { ok };
+        return { ok, why: ok ? '' : (o.options[sel] && o.options[sel].why) || '' };
       }
     };
   }
@@ -2728,12 +3726,12 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
       api.ready(answer.length > 0);
     }
     return {
-      title: o.title, autoplay: o.autoplay, fb: o.fb, sayAfter: o.sayAfter,
+      title: o.title, autoplay: o.autoplay, fb: o.fb, sayAfter: o.sayAfter, answer: o.target, tokens: o.tokens,
       view(a) {
         api = a;
         ansRow = h('div', { class: 'answer-row' + (o.letters ? ' letters' : '') });
         poolRow = h('div', { class: 'tiles' });
-        const n = h('div', { class: 'ex' }, o.prompt, ansRow, poolRow);
+        const n = h('div', { class: 'ex' }, o.prompt, ansRow, poolRow, o.listen ? muteBtn(api) : null);
         redraw();
         return n;
       },
@@ -2742,7 +3740,16 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
         const ok = U.normLoose(got) === U.normLoose(o.target);
         ansRow.classList.add(ok ? 'ok' : 'bad');
         U.$$('button', ansRow).concat(U.$$('button', poolRow)).forEach(b => { b.disabled = true; });
-        return { ok };
+        let why = '';
+        if (!ok) {
+          why = 'Ваш ответ: «<span class="en">' + esc(got) + '</span>».';
+          if (o.letters) why += ' ' + diffHint(o.target, got);
+          else if (o.gap) {
+            const wrong = answer.map(p => p.t).find(t => o.alts && o.alts.some(a => a.toLowerCase() === t.toLowerCase()));
+            if (wrong) why += ' ' + gapWhy(wrong, o.gap);
+          }
+        }
+        return { ok, why };
       }
     };
   }
@@ -2756,8 +3763,9 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     if (ds.length < 2) return null;
     const all = U.shuffle([it, ...ds]);
     return choice({
-      title: 'Послушайте и выберите картинку', prompt: h('div', { class: 'prompt' }, audioRow(it.en)), autoplay: it.en,
-      options: all.map(x => ({ cls: 'pic-opt' + (U.isTextPic(x.pic) ? ' txt' : ''), label: x.pic })), correct: all.indexOf(it), fb: fbOf(it)
+      title: 'Послушайте и выберите картинку', prompt: h('div', { class: 'prompt' }, audioRow(it.en)), autoplay: it.en, listen: true,
+      options: all.map(x => ({ cls: 'pic-opt' + (U.isTextPic(x.pic) ? ' txt' : ''), label: x.pic, why: 'Это «<span class="en">' + esc(x.en) + '</span>» — ' + esc(x.ru) + '.' })),
+      correct: all.indexOf(it), fb: fbOf(it)
     });
   };
 
@@ -2768,7 +3776,8 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     const all = U.shuffle([it, ...ds]);
     return choice({
       title: 'Прочитайте и выберите картинку', prompt: h('div', { class: 'prompt' }, wordNode(it.en)), sayAfter: it.en,
-      options: all.map(x => ({ cls: 'pic-opt' + (U.isTextPic(x.pic) ? ' txt' : ''), label: x.pic })), correct: all.indexOf(it), fb: fbOf(it)
+      options: all.map(x => ({ cls: 'pic-opt' + (U.isTextPic(x.pic) ? ' txt' : ''), label: x.pic, why: 'Эта картинка — «<span class="en">' + esc(x.en) + '</span>» (' + esc(x.ru) + '). ' + diffHint(it.en, x.en) })),
+      correct: all.indexOf(it), fb: fbOf(it)
     });
   };
 
@@ -2777,8 +3786,8 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     if (cands.length < 2) return null;
     const all = U.shuffle([it.en, ...cands]);
     return choice({
-      title: 'Какое слово вы услышали?', prompt: h('div', { class: 'prompt' }, audioRow(it.en)), autoplay: it.en,
-      options: all.map(w => ({ cls: 'word-opt en', label: w })), correct: all.indexOf(it.en), fb: fbOf(it)
+      title: 'Какое слово вы услышали?', prompt: h('div', { class: 'prompt' }, audioRow(it.en)), autoplay: it.en, listen: true,
+      options: all.map(w => ({ cls: 'word-opt en', label: w, why: wordWhy(it.en, w) })), correct: all.indexOf(it.en), fb: fbOf(it)
     });
   };
 
@@ -2789,19 +3798,19 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     const all = U.shuffle([it, ...ds]);
     return choice({
       title: 'Как это по-английски?', prompt: h('div', { class: 'prompt' }, picNode(it.pic), h('div', { class: 'ru-prompt' }, it.ru)), sayAfter: it.en,
-      options: all.map(x => ({ cls: 'word-opt en', label: x.en })), correct: all.indexOf(it), fb: fbOf(it)
+      options: all.map(x => ({ cls: 'word-opt en', label: x.en, why: itemWhy(x) })), correct: all.indexOf(it), fb: fbOf(it)
     });
   };
 
   B.read_pick_meaning = (it, ctx) => {
-    if (!family(it.kind).some(k => ['word', 'phrase', 'sent'].includes(k))) return null;
+    if (!['word', 'phrase', 'sent'].includes(it.kind)) return null;
     const ds = distract(it, ctx, 3, x => family(it.kind).includes(x.kind), x => x.ru);
     if (ds.length < 2) return null;
     const all = U.shuffle([it, ...ds]);
     return choice({
       title: 'Что это значит?', list: true,
       prompt: h('div', { class: 'prompt' }, wordNode(it.en), auBtn(it.en, { cls: 'xs' })),
-      sayAfter: it.en, options: all.map(x => ({ cls: 'ru-opt', label: x.ru })), correct: all.indexOf(it), fb: fbOf(it)
+      sayAfter: it.en, options: all.map(x => ({ cls: 'ru-opt', label: x.ru, why: ruWhy(x) })), correct: all.indexOf(it), fb: fbOf(it)
     });
   };
 
@@ -2810,8 +3819,8 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     if (ds.length < 2) return null;
     const all = U.shuffle([it, ...ds]);
     return choice({
-      title: 'Послушайте. Что это значит?', list: true, prompt: h('div', { class: 'prompt' }, audioRow(it.en)), autoplay: it.en,
-      options: all.map(x => ({ cls: 'ru-opt', label: x.ru })), correct: all.indexOf(it), fb: fbOf(it)
+      title: 'Послушайте. Что это значит?', list: true, prompt: h('div', { class: 'prompt' }, audioRow(it.en)), autoplay: it.en, listen: true,
+      options: all.map(x => ({ cls: 'ru-opt', label: x.ru, why: ruWhy(x) })), correct: all.indexOf(it), fb: fbOf(it)
     });
   };
 
@@ -2823,7 +3832,7 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     return choice({
       title: 'Как сказать по-английски?', list: long,
       prompt: h('div', { class: 'prompt' }, it.pic ? picNode(it.pic) : null, h('div', { class: 'ru-prompt' }, it.ru)), sayAfter: it.en,
-      options: all.map(x => ({ cls: 'word-opt en', label: x.en })), correct: all.indexOf(it), fb: fbOf(it)
+      options: all.map(x => ({ cls: 'word-opt en', label: x.en, why: itemWhy(x) })), correct: all.indexOf(it), fb: fbOf(it)
     });
   };
 
@@ -2841,8 +3850,10 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
   B.build = (it, ctx) => {
     const toks = tokenize(it.en);
     if (toks.length < 2) return null;
+    const extra = it.gap && it.alts.length && !/\s/.test(it.alts[0]) && !toks.some(t => t.toLowerCase() === it.alts[0].toLowerCase())
+      ? [it.alts[0]].concat(extraWords(it, ctx, toks, 1)) : extraWords(it, ctx, toks, toks.length > 5 ? 1 : 2);
     return tiles({
-      title: 'Переведите на английский', tokens: toks, extra: extraWords(it, ctx, toks, toks.length > 5 ? 1 : 2), target: toks.join(' '),
+      title: 'Переведите на английский', tokens: toks, extra, target: toks.join(' '), gap: it.gap, alts: it.alts,
       sayAfter: it.en, fb: fbOf(it),
       prompt: h('div', { class: 'prompt' }, h('div', { class: 'ru-prompt' }, it.ru))
     });
@@ -2853,7 +3864,7 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     if (toks.length < 2) return null;
     return tiles({
       title: 'Соберите то, что услышали', tokens: toks, extra: extraWords(it, ctx, toks, toks.length > 5 ? 1 : 2), target: toks.join(' '),
-      autoplay: it.en, fb: fbOf(it), prompt: h('div', { class: 'prompt' }, audioRow(it.en))
+      gap: it.gap, alts: it.alts, autoplay: it.en, fb: fbOf(it), listen: true, prompt: h('div', { class: 'prompt' }, audioRow(it.en))
     });
   };
 
@@ -2865,7 +3876,7 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     return choice({
       title: 'Вставьте пропущенное слово', sayAfter: it.en, fb: fbOf(it),
       prompt: h('div', { class: 'prompt' }, h('div', { class: 'gap-sent en' }, before, blank, after), h('div', { class: 'ru-hint' }, it.ru)),
-      options: opts.map(o => ({ cls: 'word-opt en', label: o })), correct: opts.indexOf(it.gap),
+      options: opts.map(o => ({ cls: 'word-opt en', label: o, why: gapWhy(o, it.gap) })), correct: opts.indexOf(it.gap),
       onSelect: i => { blank.textContent = opts[i]; },
       onCheck: ok => { blank.textContent = it.gap; blank.classList.add(ok ? 'filled-ok' : 'filled-bad'); }
     });
@@ -2875,14 +3886,14 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     const target = Math.random() < 0.5 ? it.a : it.b;
     const opts = [it.a, it.b];
     const ex = choice({
-      title: 'Какое слово прозвучало?',
+      title: 'Какое слово прозвучало?', listen: true,
       prompt: h('div', { class: 'prompt' }, audioRow(target.en, { varied: true }), h('p', { class: 'muted small' }, 'Голоса меняются — так слух учится лучше.')),
-      options: opts.map(o => ({ cls: 'word-opt en', label: [h('span', { class: 'pic', style: 'display:block;font-size:40px;margin-bottom:4px' }, o.pic), o.en] })),
+      options: opts.map(o => ({ cls: 'word-opt en', label: [h('span', { class: 'pic', style: 'display:block;font-size:40px;margin-bottom:4px' }, o.pic), o.en], text: o.en, why: '«<span class="en">' + esc(o.en) + '</span>» — ' + esc(o.ru) + ', а прозвучало «<span class="en">' + esc(target.en) + '</span>».' })),
       correct: opts.indexOf(target), fb: { en: target.en, ru: target.ru, note: it.note }
     });
     ex.autoplay = target.en;
     ex.autoplayOpt = { varied: true };
-    ex.afterWrong = () => Sp.speak(it.a.en, { slow: true }).then(() => Sp.speak(it.b.en, { slow: true }));
+    ex.afterWrong = () => Sp.speakSeq([it.a.en, it.b.en], { slow: true });
     return ex;
   };
 
@@ -2937,11 +3948,70 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     };
   };
 
+  // Shadowing: record yourself, then hear the model and your own voice one after another
+  B.shadow = (it, ctx) => {
+    if (!Sp.canRecord() || ctx.noRecord) return null;
+    const seconds = Math.min(8, 2.5 + it.en.split(/\s+/).length * 0.6);
+    return {
+      title: 'Послушайте и повторите', auto: true, autoplay: it.en,
+      view(a) {
+        let finished = false, url = null;
+        const done = r => { if (finished) return; finished = true; a.done(r); };
+        const status = h('div', { class: 'heard' }, 'Послушайте образец, потом нажмите на микрофон и повторите.');
+        const mic = h('button', { class: 'mic', type: 'button', 'aria-label': 'Записать', html: U.icon('mic') });
+        const compare = h('button', { class: 'btn sm', type: 'button', hidden: true }, 'Сравнить ещё раз');
+        const verdict = h('div', { class: 'row', hidden: true, style: 'justify-content:center;flex-wrap:wrap' },
+          h('button', { class: 'btn good sm', type: 'button', onclick: () => done({ ok: true, spoken: true }) }, 'Похоже'),
+          h('button', { class: 'btn sm', type: 'button', onclick: () => { verdict.hidden = true; status.textContent = 'Попробуйте ещё раз: нажмите на микрофон.'; } }, 'Ещё раз'),
+          h('button', { class: 'btn ghost sm', type: 'button', onclick: () => done({ skip: true, msg: 'Повторим это позже.' }) }, 'Дальше'));
+        const playBoth = async () => {
+          status.textContent = 'Образец…';
+          await Sp.speak(it.en);
+          if (finished || !url) return;
+          await new Promise(r => setTimeout(r, 350));
+          status.textContent = 'Вы…';
+          await Sp.playRecording(url);
+          if (!finished) status.textContent = 'Похоже на образец? Обратите внимание на звуки и ударение.';
+        };
+        compare.onclick = playBoth;
+        mic.onclick = async () => {
+          if (finished) return;
+          if (mic.classList.contains('listening')) { Sp.stopRecording(); return; }
+          Sp.stop();
+          mic.classList.add('listening');
+          status.textContent = 'Говорите… (нажмите ещё раз, чтобы закончить)';
+          const r = await Sp.record(seconds * 1000);
+          mic.classList.remove('listening');
+          if (r.error) {
+            if (Sp.recBlocked) {
+              ctx.noRecord = true;
+              status.textContent = 'Нет доступа к микрофону — это задание пропускаем.';
+              setTimeout(() => done({ skip: true }), 1500);
+            } else status.textContent = 'Не получилось записать. Попробуйте ещё раз.';
+            return;
+          }
+          url = r.url;
+          compare.hidden = false;
+          verdict.hidden = false;
+          playBoth();
+        };
+        const skip = h('button', {
+          class: 'btn ghost sm', type: 'button',
+          onclick: () => { Sp.stopRecording(); Sp.pauseMic(15); done({ skip: true, msg: 'Хорошо, 15 минут без микрофона.' }); }
+        }, 'Не могу говорить сейчас');
+        return h('div', { class: 'ex' },
+          h('div', { class: 'prompt' }, wordNode(it.en), h('div', { class: 'ru-hint' }, it.ru), audioRow(it.en)),
+          h('div', { class: 'mic-wrap' }, mic, status, compare, verdict), skip);
+      }
+    };
+  };
+
   // ----- letters -----
+  // Another word with the same sound, but only one the learner has already been shown
   function altWord(L, ctx) {
-    if (!L.re || Math.random() < 0.5) return null;
+    if (!L.re || !ctx.learned || Math.random() < 0.5) return null;
     const re = new RegExp(L.re);
-    const ws = ctx.knownIds.map(id => C.items[id]).filter(x => x && x.kind === 'word' && x.read && re.test(x.en.toLowerCase()));
+    const ws = Array.from(ctx.learned).map(id => C.items[id]).filter(x => x && x.kind === 'word' && x.read && re.test(x.en.toLowerCase()));
     return ws.length ? U.pick(ws) : null;
   }
 
@@ -2953,7 +4023,8 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     return choice({
       title, prompt: h('div', { class: 'prompt' }, h('div', { class: 'bigletter en', style: L.ch.length > 3 ? 'font-size:56px' : '' }, L.ch),
         h('p', { class: 'muted small' }, 'Нажимайте на картинки, чтобы услышать слово')),
-      options: all.map(x => ({ cls: 'pic-opt', label: x.pic, say: x.key })), correct: all.indexOf(L), fb: { en: L.key, ru: L.keyRu }, sayAfter: L.key
+      options: all.map(x => ({ cls: 'pic-opt', label: x.pic, say: x.key, why: 'Это «<span class="en">' + esc(x.key) + '</span>» (' + esc(x.keyRu) + ') — здесь звук «' + esc(x.ch) + '».' })),
+      correct: all.indexOf(L), fb: { en: L.key, ru: L.keyRu }, sayAfter: L.key
     });
   };
 
@@ -2965,9 +4036,9 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     const all = U.shuffle([L, ...ds]);
     const title = L.pos === 'start' ? 'С чего начинается это слово?' : 'Какие буквы дают звук в этом слове?';
     return choice({
-      title, prompt: h('div', { class: 'prompt' }, audioRow(word)), autoplay: word,
-      options: all.map(x => ({ cls: (x.ch.length > 3 ? 'word-opt' : 'letter-opt') + ' en', label: x.ch })), correct: all.indexOf(L),
-      fb: { en: word, ru: alt ? alt.ru : L.keyRu }
+      title, prompt: h('div', { class: 'prompt' }, audioRow(word)), autoplay: word, listen: true,
+      options: all.map(x => ({ cls: (x.ch.length > 3 ? 'word-opt' : 'letter-opt') + ' en', label: x.ch, why: '«' + esc(x.ch) + '» звучит как в слове «<span class="en">' + esc(x.key) + '</span>».' })),
+      correct: all.indexOf(L), fb: { en: word, ru: alt ? alt.ru : L.keyRu }
     });
   };
 
@@ -2979,7 +4050,8 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     const all = U.shuffle([L.ch, ...others]);
     return choice({
       title: 'Найдите эту же букву, но маленькую', prompt: h('div', { class: 'prompt' }, h('div', { class: 'bigletter en' }, L.uc)),
-      options: all.map(c => ({ cls: 'letter-opt en', label: c })), correct: all.indexOf(L.ch), fb: { en: L.uc + ' ' + L.ch, ru: '', say: X.nameSay(L.ch) }, sayAfter: X.nameSay(L.ch)
+      options: all.map(c => ({ cls: 'letter-opt en', label: c, why: '«' + c + '» — это маленькая ' + c.toUpperCase() + '.' })),
+      correct: all.indexOf(L.ch), fb: { en: L.uc + ' ' + L.ch, ru: '', say: X.nameSay(L.ch) }, sayAfter: X.nameSay(L.ch)
     });
   };
 
@@ -3003,7 +4075,7 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     const all = U.shuffle([N.uc, ...others]);
     const say = X.nameSay(N.ch);
     return choice({
-      title: 'Какую букву назвали?', prompt: h('div', { class: 'prompt' }, audioRow(say)), autoplay: say,
+      title: 'Какую букву назвали?', prompt: h('div', { class: 'prompt' }, audioRow(say)), autoplay: say, listen: true,
       options: all.map(c => ({ cls: 'letter-opt en', label: c })), correct: all.indexOf(N.uc), fb: { en: N.uc + ' ' + N.ch, ru: '', say }
     });
   };
@@ -3016,14 +4088,15 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     if (cands.length < 2) return null;
     const all = U.shuffle([it.en, ...cands]);
     return choice({
-      title: 'Слово продиктовали по буквам. Какое?', prompt: h('div', { class: 'prompt' }, audioRow(say)), autoplay: say,
-      options: all.map(x => ({ cls: 'word-opt en', label: x })), correct: all.indexOf(it.en), fb: fbOf(it), sayAfter: it.en
+      title: 'Слово продиктовали по буквам. Какое?', prompt: h('div', { class: 'prompt' }, audioRow(say)), autoplay: say, listen: true,
+      options: all.map(x => ({ cls: 'word-opt en', label: x, why: wordWhy(it.en, x) })), correct: all.indexOf(it.en), fb: fbOf(it), sayAfter: it.en
     });
   };
 
   // Which exercise types fit an item at a given level (0 = just met, 2+ = should produce it)
   function menu(it, lvl, ctx) {
     const mic = Sp.canListen() && !ctx.noSpeak && Math.random() < 0.6;
+    const rec = Sp.canRecord() && !ctx.noRecord && Math.random() < 0.5;
     const k = it.kind;
     let m;
     if (k === 'letter') m = lvl <= 0 ? ['letter_pic', 'letter_listen'] : ['letter_listen', 'letter_pic', it.twin && 'twin_sound', it.single && 'letter_case'];
@@ -3037,36 +4110,45 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     } else if (k === 'sent') {
       if (lvl <= 0) m = ['read_pick_meaning', it.gap && 'gap'];
       else if (lvl === 1) m = [it.gap && 'gap', 'build', 'ru_pick_en'];
-      else m = ['listen_build', 'build', it.gap && 'gap', mic && 'speak'];
+      else m = ['listen_build', 'build', it.gap && 'gap', mic && 'speak', rec && 'shadow'];
     } else {
       if (lvl <= 0) m = ['listen_pick_meaning', 'read_pick_meaning'];
       else if (lvl === 1) m = ['ru_pick_en', 'build', 'listen_pick_meaning'];
-      else m = ['listen_build', 'build', mic && 'speak'];
+      else m = ['listen_build', 'build', mic && 'speak', rec && 'shadow'];
     }
     return m.filter(Boolean);
   }
 
   const FALLBACK = {
     letter: ['letter_pic', 'letter_listen', 'letter_case'], name: ['name_listen'], pair: ['minimal'],
-    word: ['read_pick_meaning', 'listen_pick_word', 'listen_pick_pic'], phrase: ['read_pick_meaning', 'listen_pick_meaning'], sent: ['read_pick_meaning', 'build']
+    word: ['read_pick_meaning', 'listen_pick_word', 'listen_pick_pic'], phrase: ['read_pick_meaning', 'listen_pick_meaning'], sent: ['read_pick_meaning', 'build', 'gap']
   };
 
+  // A grammar pattern becomes a fresh sentence each time it is practised
+  function variantOf(p) {
+    return Object.assign({ id: p.id, kind: 'sent', pic: '', pat: p }, p.gen());
+  }
+
   X.make = function (entry, ctx) {
-    const it = C.items[entry.id];
-    if (!it) return null;
-    const types = entry.mode ? [entry.mode] : U.shuffle(menu(it, entry.lvl, ctx));
+    const base = C.items[entry.id];
+    if (!base) return null;
+    const it = base.kind === 'pat' ? variantOf(base) : base;
+    let types = entry.mode ? [entry.mode] : U.shuffle(menu(it, entry.lvl, ctx));
     types.sort((a, b) => (a === ctx.lastType) - (b === ctx.lastType));
-    for (const t of types.concat(FALLBACK[it.kind] || [])) {
+    types = types.concat(FALLBACK[it.kind] || []);
+    if (Sp.muted()) types = types.filter(t => !AUDIO_TYPES.has(t));
+    for (const t of types) {
       const ex = B[t] && B[t](it, ctx);
       if (ex) {
         ex.type = t;
-        ex.item = it;
+        ex.item = base;
         ctx.lastType = t;
         return ex;
       }
     }
     return null;
   };
+  X.audioOnly = it => !it || it.kind === 'name' || it.kind === 'pair';
 
   // ---------- match pairs ----------
   X.makeMatch = function (ids) {
@@ -3122,6 +4204,7 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     const spans = Array.from(el.children);
     let i = 0;
     (function step() {
+      if (!el.isConnected) return; // the learner has moved on: no late sound on the next screen
       spans.forEach((s, j) => s.classList.toggle('on', j === i));
       i++;
       if (i <= spans.length) setTimeout(step, 280);
@@ -3171,7 +4254,20 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
         h('div', { class: 'pair-cards' }, card(it.a), card(it.b)),
         h('div', { class: 'intro-hint', html: it.note }),
         h('p', { class: 'muted small' }, 'Нажимайте на карточки по очереди и слушайте разницу.'));
-      return { node, play: () => Sp.speak(it.a.en, { slow: true }).then(() => Sp.speak(it.b.en, { slow: true })) };
+      return { node, play: () => Sp.speakSeq([it.a.en, it.b.en], { slow: true }) };
+    }
+    if (it.kind === 'pat') {
+      const ex = U.sample(it.variants, 3);
+      const node = h('div', { class: 'intro' },
+        h('div', { class: 'label kind' }, 'Правило'),
+        h('div', { class: 'intro-en en md' }, it.en),
+        h('div', { class: 'intro-ru' }, it.ru),
+        h('div', { class: 'intro-hint', html: it.rule }),
+        h('div', { class: 'stack', style: 'align-self:stretch' }, ex.map(v => h('div', { class: 'key-row' },
+          h('div', { class: 'grow', style: 'text-align:left' }, h('div', { class: 'en', style: 'font-size:19px;font-weight:700' }, v.en), h('div', { class: 'muted small' }, v.ru)),
+          auBtn(v.en, { cls: 'xs' })))),
+        h('p', { class: 'muted small' }, 'Дальше правило будет каждый раз с новыми предложениями — так тренируется само правило, а не заученная фраза.'));
+      return { node, play: () => Sp.speak(ex[0].en) };
     }
     const isRead = it.kind === 'word' && it.read;
     const enEl = h('div', { class: 'intro-en en' + sizeCls(it.en) + (isRead ? ' blend' : ''), role: 'button', tabindex: '0' });
@@ -3186,7 +4282,8 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
       h('div', { class: 'intro-ru' }, it.ru),
       audioRow(it.en),
       isRead ? h('p', { class: 'muted small' }, 'Посмотрите, как звуки букв сливаются в слово. Нажмите на слово, чтобы повторить.') : null,
-      it.kind === 'sent' && it.gap ? h('div', { class: 'intro-hint' }, 'Главное слово здесь — ', h('b', { class: 'en' }, it.gap)) : null);
+      it.kind === 'sent' && it.gap ? h('div', { class: 'intro-hint' }, 'Главное слово здесь — ', h('b', { class: 'en' }, it.gap),
+        whyWord(it.gap) ? h('span', { html: '. ' + whyWord(it.gap) }) : null) : null);
     return { node, play: say };
   };
 
@@ -3212,13 +4309,17 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
   const PRAISE = ['Верно!', 'Отлично!', 'Так держать!', 'Супер!', 'Правильно!', 'Здорово!'];
   let S = null;
   let el = {};
+  Sp.onMute(on => { if (el.mute) el.mute.hidden = !on; });
 
   L.active = () => !!S && !S.finished;
 
+  // learned: items the learner has actually been shown (grows as new items are introduced in this lesson);
+  // known: learned plus this lesson's items (used only as wrong options)
   function makeCtx(unitIndex, extra) {
-    const known = new Set(Object.keys(St.state.items).filter(id => C.items[id]));
+    const learned = new Set(Object.keys(St.state.items).filter(id => C.items[id]));
+    const known = new Set(learned);
     (extra || []).forEach(id => known.add(id));
-    return { known, knownIds: Array.from(known), unitIndex, lastType: null, noSpeak: false };
+    return { learned, known, knownIds: Array.from(known), unitIndex, lastType: null, noSpeak: false };
   }
 
   // Learned items, most forgotten first (due ones before the rest)
@@ -3299,7 +4400,15 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
   }
 
   // ---------- public ----------
-  L.startLesson = function (lesson) {
+  L.startLesson = async function (lesson) {
+    // Listening-only lessons cannot run in "can't listen now" mode
+    const ids = lesson.newIds.concat(lesson.refIds);
+    const audioOnly = lesson.mode === 'spell_listen' || (ids.length && ids.every(id => X.audioOnly(C.items[id])));
+    if (Sp.muted() && (audioOnly || lesson.story)) {
+      const ok = await U.confirm({ title: 'Включить звук?', text: 'Этот урок нельзя пройти без звука.', ok: 'Включить звук', cancel: 'Позже' });
+      if (!ok) return;
+      Sp.unmute();
+    }
     if (lesson.story) { A.Story.start(lesson); return; }
     begin({ kind: 'lesson', lesson, queue: lessonQueue(lesson), unitIndex: lesson.unit.index, extraKnown: lesson.newIds.concat(lesson.refIds) });
   };
@@ -3325,8 +4434,12 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     el.cta = h('button', { class: 'btn primary block', type: 'button' }, 'Проверить');
     el.foot = h('div', { class: 'lesson-foot' }, el.fb, el.cta);
     const close = h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Выйти', html: U.icon('close'), onclick: onClose || L.askExit });
+    el.mute = h('button', {
+      class: 'mute-chip', type: 'button', hidden: !Sp.muted(), title: 'Включить звук',
+      onclick: () => { Sp.unmute(); U.toast('Звук снова включён'); }
+    }, '🔇 без звука');
     U.$('#main').replaceChildren(h('div', { class: 'lesson' },
-      h('div', { class: 'lesson-top' }, close, h('div', { class: 'progress', role: 'progressbar' }, el.progress), el.combo),
+      h('div', { class: 'lesson-top' }, close, h('div', { class: 'progress', role: 'progressbar' }, el.progress), el.mute, el.combo),
       el.body, el.foot));
     U.$('#main').scrollTop = 0;
     return el;
@@ -3384,6 +4497,7 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
       el.cta.textContent = 'Дальше';
       el.cta.onclick = next;
       if (!S.introduced.includes(e.id)) S.introduced.push(e.id);
+      S.ctx.learned.add(e.id);
       setTimeout(() => { if (S && S.queue[S.pos] === e) card.play(); }, 350);
       return;
     }
@@ -3446,7 +4560,7 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
         S.errRun++;
         U.sfx('bad');
         U.vibrate([30, 40, 30]);
-        showFb('bad', 'Правильный ответ:', ex);
+        showFb('bad', 'Правильный ответ:', ex, r);
         const say = (ex.fb && (ex.fb.say || ex.fb.en)) || ex.sayAfter;
         setTimeout(() => { if (S && S.ex === ex) { if (ex.afterWrong) ex.afterWrong(); else if (say) Sp.speak(say); } }, 450);
         if (e.t === 'ex') requeue(e);
@@ -3457,13 +4571,14 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     el.cta.onclick = next;
   }
 
-  function showFb(kind, title, ex) {
+  function showFb(kind, title, ex, r) {
     el.foot.className = 'lesson-foot ' + kind;
     const fb = ex && ex.fb;
     const body = h('div', { class: 'fb-body' });
     if (fb && kind === 'bad') {
       if (fb.en) body.append(h('div', { class: 'en' }, fb.en));
       if (fb.ru) body.append(h('div', {}, fb.ru));
+      if (r && r.why) body.append(h('div', { class: 'fb-why', html: r.why }));
       if (fb.note) body.append(h('div', { class: 'small', style: 'margin-top:6px', html: fb.note }));
     } else if (fb && kind === 'good' && fb.en && fb.ru) {
       body.append(h('span', { class: 'en', style: 'font-size:17px' }, fb.en), ' — ' + fb.ru);
@@ -3563,6 +4678,7 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
 'use strict';
 // Story reader: lines appear one at a time with audio; every word can be tapped for a translation.
 // Ends with a few comprehension questions.
+// Dialogues add a role-play: after listening, the learner plays Anna and picks her replies.
 (function (A) {
   const U = A.U, h = U.h, C = A.Course, Sp = A.Speech, St = A.Store;
   const Story = A.Story = {};
@@ -3585,16 +4701,18 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     const tr = C.gloss(word);
     U.$$('.w.on').forEach(x => x.classList.remove('on'));
     wEl.classList.add('on');
-    Sp.speak(word.replace(/[.,!?]/g, ''));
+    const clean = word.replace(/[.,!?“”"]/g, '');
+    Sp.speak(clean);
     let pop = U.$('.gloss-pop');
     if (pop) pop.remove();
-    pop = h('div', { class: 'gloss-pop', role: 'status' }, h('span', { class: 'en' }, word.replace(/[.,!?]/g, '')), h('span', {}, tr ? '— ' + tr : '— (имя или новое слово)'));
+    pop = h('div', { class: 'gloss-pop', role: 'status' }, h('span', { class: 'en' }, clean), h('span', {}, tr ? '— ' + tr : '— (имя или новое слово)'));
     document.body.append(pop);
     clearTimeout(popT);
     popT = setTimeout(() => { pop.remove(); wEl.classList.remove('on'); }, 2600);
   }
 
-  function bubble(line) {
+  function bubble(line, opt) {
+    opt = opt || {};
     const [who, en, ru] = line;
     const side = who === 'Anna' ? ' right' : who ? '' : ' narr';
     const enEl = h('div', { class: 'line-en en' });
@@ -3602,21 +4720,25 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
       if (/^\s+$/.test(tok)) enEl.append(tok);
       else {
         const w = h('span', { class: 'w', role: 'button', tabindex: '0' }, tok);
-        w.onclick = () => gloss(tok, w);
+        w.onclick = () => { if (!b.classList.contains('masked')) gloss(tok, w); };
         enEl.append(w);
       }
     });
     const ruEl = h('div', { class: 'line-ru', hidden: true }, ru);
-    const play = X().auBtn(en, { cls: 'xs' });
+    const play = A.Ex.auBtn(en, { cls: 'xs' });
     play.onclick = () => sayLine(line);
     const tr = h('button', { class: 'btn sm ghost', type: 'button', onclick: () => { ruEl.hidden = !ruEl.hidden; } }, 'Перевод');
-    return h('div', { class: 'bubble' + side }, who ? h('div', { class: 'who' }, who) : null, enEl, ruEl, h('div', { class: 'line-tools' }, play, tr));
+    const label = who === 'Anna' && T && T.dialog ? 'Anna (вы)' : who;
+    const b = h('div', { class: 'bubble' + side + (opt.masked ? ' masked' : '') }, who ? h('div', { class: 'who' }, label) : null, enEl, ruEl, h('div', { class: 'line-tools' }, play, tr));
+    return b;
   }
-  const X = () => A.Ex;
 
   Story.start = function (lesson) {
     const story = A.DATA.stories[lesson.story];
-    T = { lesson, story, shown: 0, q: -1, correct: 0, t0: Date.now(), finished: false };
+    const dialog = story.type === 'dialog';
+    const roleLines = dialog ? story.lines.filter(l => l[0] === story.role).length : 0;
+    T = { lesson, story, dialog, shown: 0, q: -1, correct: 0, roleOk: 0, roleTotal: roleLines, t0: Date.now(), finished: false, done: 0 };
+    T.total = story.lines.length + story.questions.length + roleLines;
     A.App.enterFocus();
     el = A.Lesson.shell(askExit);
     cover();
@@ -3624,43 +4746,56 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
 
   async function askExit() {
     if (!T || T.finished) { A.App.exitFocus(); return; }
-    const ok = await U.confirm({ title: 'Закрыть историю?', text: 'Её можно будет прочитать заново в любой момент.', ok: 'Закрыть', cancel: 'Читать дальше' });
+    const ok = await U.confirm({ title: T.dialog ? 'Закрыть диалог?' : 'Закрыть историю?', text: 'Его можно будет пройти заново в любой момент.', ok: 'Закрыть', cancel: 'Продолжить' });
     if (ok) { Sp.stop(); T = null; A.App.exitFocus(); }
   }
   Story.askExit = askExit;
   Story.active = () => !!T && !T.finished;
 
-  const total = () => T.story.lines.length + T.story.questions.length;
-  const progress = done => { el.progress.style.width = Math.round(done / total() * 100) + '%'; };
+  const step = () => { T.done++; el.progress.style.width = Math.round(T.done / T.total * 100) + '%'; };
+  function resetFoot() {
+    el.fb.hidden = true;
+    el.foot.className = 'lesson-foot';
+    el.cta.hidden = false;
+    el.cta.disabled = false;
+  }
 
   function cover() {
     const s = T.story;
     const who = [...new Set(s.lines.map(l => l[0]).filter(Boolean))];
     el.body.replaceChildren(h('div', { class: 'stack' },
-      h('div', { class: 'story-cover' },
-        h('div', { class: 'label' }, 'История'),
+      h('div', { class: 'story-cover' + (T.dialog ? ' dial' : '') },
+        h('div', { class: 'label' }, T.dialog ? 'Диалог' : 'История'),
         h('h1', { class: 'h1' }, s.title),
         h('p', {}, s.intro),
-        h('p', { class: 'small' }, 'Герои: ' + who.join(', '))),
-      h('div', { class: 'intro-hint' }, 'Слушайте каждую реплику. ', h('b', {}, 'Нажмите на любое слово'), ' — увидите перевод. Кнопка «Перевод» показывает всю фразу, но сначала попробуйте понять сами.')));
-    progress(0);
-    el.cta.textContent = 'Читать';
+        h('p', { class: 'small' }, (T.dialog ? 'Участники: ' : 'Герои: ') + who.join(', '))),
+      T.dialog
+        ? h('div', { class: 'intro-hint' }, 'Три шага: ', h('b', {}, 'послушайте'), ' разговор (текст скрыт — попробуйте понять на слух), ', h('b', {}, 'ответьте'), ' на вопросы и ', h('b', {}, 'сыграйте Анну'), ': выбирайте её реплики.')
+        : h('div', { class: 'intro-hint' }, 'Слушайте каждую реплику. ', h('b', {}, 'Нажмите на любое слово'), ' — увидите перевод. Кнопка «Перевод» показывает всю фразу, но сначала попробуйте понять сами.')));
+    el.progress.style.width = '0%';
+    resetFoot();
+    el.cta.textContent = T.dialog ? 'Слушать' : 'Читать';
     el.cta.onclick = nextLine;
   }
 
-  let list;
+  let list, showText = false;
   function nextLine() {
     const s = T.story;
     if (T.shown === 0) {
       list = h('div', { class: 'story-lines' });
-      el.body.replaceChildren(h('div', { class: 'ex-title' }, s.title), list);
+      showText = !T.dialog;
+      const toggle = T.dialog ? h('button', {
+        class: 'btn sm', type: 'button',
+        onclick: e => { showText = !showText; U.$$('.bubble', list).forEach(b => b.classList.toggle('masked', !showText)); e.currentTarget.textContent = showText ? 'Скрыть текст' : 'Показать текст'; }
+      }, 'Показать текст') : null;
+      el.body.replaceChildren(h('div', { class: 'row', style: 'justify-content:space-between;margin-bottom:12px' }, h('div', { class: 'ex-title', style: 'margin:0' }, T.dialog ? 'Слушаем' : s.title), toggle), list);
     }
     if (T.shown < s.lines.length) {
       const line = s.lines[T.shown];
-      const b = bubble(line);
+      const b = bubble(line, { masked: T.dialog && !showText });
       list.append(b);
       T.shown++;
-      progress(T.shown);
+      step();
       sayLine(line);
       setTimeout(() => b.scrollIntoView({ behavior: 'smooth', block: 'end' }), 30);
       el.cta.textContent = T.shown < s.lines.length ? 'Дальше' : 'К вопросам';
@@ -3672,8 +4807,7 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
   function question() {
     T.q++;
     const s = T.story;
-    if (T.q >= s.questions.length) { finish(); return; }
-    progress(s.lines.length + T.q);
+    if (T.q >= s.questions.length) { if (T.dialog) roleIntro(); else finish(); return; }
     const [q, right, ...wrong] = s.questions[T.q];
     const opts = U.shuffle([right, ...wrong]);
     let sel = -1;
@@ -3685,44 +4819,447 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
       h('div', { class: 'label' }, 'Вопрос ' + (T.q + 1) + ' из ' + s.questions.length),
       h('div', { class: 'ex-title' }, q),
       h('div', { class: 'opts list' }, btns),
-      h('details', { class: 'muted small' }, h('summary', {}, 'Перечитать историю'),
-        h('div', { class: 'story-lines', style: 'margin-top:10px' }, s.lines.map(bubble)))));
+      h('details', { class: 'muted small' }, h('summary', {}, T.dialog ? 'Послушать и прочитать разговор' : 'Перечитать историю'),
+        h('div', { class: 'story-lines', style: 'margin-top:10px' }, s.lines.map(l => bubble(l))))));
     U.$('#main').scrollTop = 0;
-    el.fb.hidden = true;
-    el.foot.className = 'lesson-foot';
+    resetFoot();
     el.cta.textContent = 'Проверить';
     el.cta.disabled = true;
     el.cta.onclick = () => {
       const ok = opts[sel] === right;
       btns.forEach((b, j) => { b.disabled = true; b.classList.remove('sel'); b.classList.add(opts[j] === right ? 'ok' : j === sel ? 'bad' : 'dim'); });
       if (ok) { T.correct++; U.sfx('ok'); U.vibrate(12); } else { U.sfx('bad'); U.vibrate([30, 40, 30]); }
-      el.foot.className = 'lesson-foot ' + (ok ? 'good' : 'bad');
-      el.fb.replaceChildren(h('div', { class: 'fb-ico', html: U.icon(ok ? 'check' : 'x') }),
-        h('div', { class: 'grow' }, h('div', { class: 'fb-title' }, ok ? 'Верно!' : 'Правильный ответ:'), ok ? null : h('div', { class: 'fb-body' }, right)));
-      el.fb.hidden = false;
+      step();
+      feedback(ok, ok ? null : right);
       el.cta.textContent = 'Дальше';
       el.cta.onclick = question;
+    };
+  }
+
+  function feedback(ok, rightText, isEn) {
+    el.foot.className = 'lesson-foot ' + (ok ? 'good' : 'bad');
+    U.fill(el.fb, h('div', { class: 'fb-ico', html: U.icon(ok ? 'check' : 'x') }),
+      h('div', { class: 'grow' }, h('div', { class: 'fb-title' }, ok ? 'Верно!' : 'Правильный ответ:'),
+        ok ? null : h('div', { class: 'fb-body' + (isEn ? ' en' : '') }, rightText)));
+    el.fb.hidden = false;
+  }
+
+  // ---------- Role-play (dialogues) ----------
+  let roleList, roleIdx;
+  function roleIntro() {
+    el.body.replaceChildren(h('div', { class: 'stack' },
+      h('div', { class: 'story-cover dial' }, h('div', { class: 'label' }, 'Шаг 3'), h('h1', { class: 'h1' }, 'Теперь вы — Анна'),
+        h('p', {}, 'Собеседник говорит свои реплики, а вы выбираете, что ответить. Правильная реплика прозвучит — повторяйте её вслух.')),
+      h('div', { class: 'intro-hint' }, 'Не бойтесь ошибиться: верный вариант покажем сразу.')));
+    resetFoot();
+    el.cta.textContent = 'Начать';
+    roleIdx = 0;
+    roleList = h('div', { class: 'story-lines' });
+    el.cta.onclick = () => { el.body.replaceChildren(h('div', { class: 'ex-title' }, 'Ваша роль'), roleList); roleNext(); };
+  }
+
+  function replyOptions(line) {
+    const role = T.story.role;
+    const same = T.story.lines.filter(l => l[0] === role && l[1] !== line[1]).map(l => l[1]);
+    const other = [].concat(...Object.values(A.DATA.stories).filter(s => s.type === 'dialog' && s !== T.story)
+      .map(s => s.lines.filter(l => l[0] === role).map(l => l[1])));
+    const picks = U.sample(same, 1).concat(U.sample(other.filter(x => x !== line[1]), 1));
+    return U.shuffle([line[1]].concat(picks));
+  }
+
+  function roleNext() {
+    const s = T.story;
+    resetFoot();
+    if (roleIdx >= s.lines.length) { finish(); return; }
+    const line = s.lines[roleIdx];
+    if (line[0] !== s.role) {
+      const b = bubble(line);
+      roleList.append(b);
+      sayLine(line);
+      setTimeout(() => b.scrollIntoView({ behavior: 'smooth', block: 'end' }), 30);
+      roleIdx++;
+      el.cta.textContent = 'Дальше';
+      el.cta.onclick = roleNext;
+      return;
+    }
+    const opts = replyOptions(line);
+    let sel = -1;
+    const box = h('div', { class: 'reply-box' }, h('div', { class: 'label' }, 'Что ответит Анна?'));
+    const btns = opts.map((o, i) => h('button', {
+      class: 'opt word-opt en reply-opt', type: 'button',
+      onclick: () => { sel = i; btns.forEach((b, j) => b.classList.toggle('sel', j === i)); el.cta.disabled = false; U.sfx('tap'); }
+    }, o));
+    box.append(h('div', { class: 'opts list' }, btns));
+    roleList.append(box);
+    setTimeout(() => box.scrollIntoView({ behavior: 'smooth', block: 'end' }), 30);
+    el.cta.textContent = 'Ответить';
+    el.cta.disabled = true;
+    el.cta.onclick = () => {
+      const ok = opts[sel] === line[1];
+      if (ok) { T.roleOk++; U.sfx('ok'); U.vibrate(12); } else { U.sfx('bad'); U.vibrate([30, 40, 30]); }
+      box.replaceWith(bubble(line));
+      step();
+      feedback(ok, line[1], true);
+      setTimeout(() => sayLine(line), ok ? 250 : 450);
+      roleIdx++;
+      el.cta.textContent = 'Дальше';
+      el.cta.onclick = roleNext;
     };
   }
 
   function finish() {
     const stt = St.state;
     const secs = (Date.now() - T.t0) / 1000;
-    const n = T.story.questions.length;
-    const xp = 10 + T.correct * 2;
+    const n = T.story.questions.length + T.roleTotal;
+    const good = T.correct + T.roleOk;
+    const xp = 10 + good * 2;
     const was = C.unitComplete(T.lesson.unit);
-    stt.lessons[T.lesson.key] = { at: Date.now(), acc: Math.round(T.correct / n * 100) };
-    stt.stats.stories++;
+    stt.lessons[T.lesson.key] = { at: Date.now(), acc: Math.round(good / n * 100) };
+    if (T.dialog) stt.stats.dialogs = (stt.stats.dialogs || 0) + 1; else stt.stats.stories++;
     stt.stats.answered += n;
-    stt.stats.correct += T.correct;
+    stt.stats.correct += good;
     const ev = A.Progress.addXP(xp, secs);
     const badges = A.Progress.checkBadges();
     St.save();
     T.finished = true;
     A.Lesson.finishView({
-      label: 'История · ' + T.story.title, xp, acc: Math.round(T.correct / n * 100), secs, fresh: 0,
-      perfect: T.correct === n, ev, badges, unitDone: !was
+      label: (T.dialog ? 'Диалог · ' : 'История · ') + T.story.title, xp, acc: Math.round(good / n * 100), secs, fresh: 0,
+      perfect: good === n, ev, badges, unitDone: !was
     });
+  }
+})(window.A);
+
+</script>
+<script>
+'use strict';
+// Moving progress between devices without a server:
+//  - an animated series of QR codes (the progress is too big for one code), scanned by the other device's camera;
+//  - sending the backup as a file through the system share menu (Telegram, e-mail…) or downloading it.
+(function (A) {
+  const U = A.U, h = U.h, St = A.Store;
+  const T = A.Transfer = {};
+  const CHUNK = 600;
+
+  function toB64(bytes) {
+    let s = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(s);
+  }
+  function fromB64(b64) {
+    const bin = atob(b64);
+    const out = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i);
+    return out;
+  }
+  async function pipe(bytes, stream) {
+    const res = new Response(new Blob([bytes]).stream().pipeThrough(stream));
+    return new Uint8Array(await res.arrayBuffer());
+  }
+
+  // Compressed, base64-encoded backup ('z:' deflate, 'p:' plain when the browser cannot compress)
+  T.pack = async function () {
+    const bytes = new TextEncoder().encode(St.exportJSON());
+    if (window.CompressionStream) return 'z:' + toB64(await pipe(bytes, new CompressionStream('deflate-raw')));
+    return 'p:' + toB64(bytes);
+  };
+  T.unpack = async function (payload) {
+    const kind = payload.slice(0, 2), bytes = fromB64(payload.slice(2));
+    if (kind === 'z:') return new TextDecoder().decode(await pipe(bytes, new DecompressionStream('deflate-raw')));
+    return new TextDecoder().decode(bytes);
+  };
+
+  T.canScan = () => 'BarcodeDetector' in window && !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
+  const inFrame = () => { try { return window.top !== window.self; } catch (e) { return true; } };
+
+  // ---------- Sender ----------
+  T.showQR = async function () {
+    if (typeof window.qrcode !== 'function') { U.toast('QR-коды не поддерживаются'); return; }
+    const payload = await T.pack();
+    const id = Math.random().toString(36).slice(2, 6);
+    const n = Math.ceil(payload.length / CHUNK);
+    const frames = [];
+    for (let i = 0; i < n; i++) {
+      const qr = window.qrcode(0, 'L');
+      qr.addData('EZ1/' + id + '/' + (i + 1) + '/' + n + '/' + payload.slice(i * CHUNK, (i + 1) * CHUNK));
+      qr.make();
+      frames.push(qr.createDataURL(4, 2));
+    }
+    const img = h('img', { class: 'qr-img', alt: 'QR-код с прогрессом', src: frames[0] });
+    const label = h('div', { class: 'small muted' }, n > 1 ? 'Кадр 1 из ' + n : '');
+    let i = 0;
+    const timer = n > 1 ? setInterval(() => { i = (i + 1) % n; img.src = frames[i]; label.textContent = 'Кадр ' + (i + 1) + ' из ' + n; }, 450) : null;
+    U.sheet(h('div', { class: 'stack', style: 'align-items:center;text-align:center' },
+      h('h2', { class: 'h2' }, 'Покажите этот код другому устройству'),
+      h('p', { class: 'muted small' }, 'На телефоне откройте Профиль → Перенос прогресса → «Сканировать QR-код» и наведите камеру на экран. Коды сменяются — держите камеру, пока не соберутся все.'),
+      h('div', { class: 'qr-frame' }, img), label,
+      h('button', { class: 'btn block', type: 'button', onclick: () => U.closeSheet() }, 'Готово')
+    ), { onClose: () => clearInterval(timer) });
+    // the sheet's own close button path
+    const ov = document.getElementById('overlay');
+    const stop = () => { if (ov.hidden) { clearInterval(timer); obs.disconnect(); } };
+    const obs = new MutationObserver(stop);
+    obs.observe(ov, { attributes: true, attributeFilter: ['hidden'] });
+  };
+
+  // ---------- Receiver ----------
+  T.scan = async function () {
+    if (!T.canScan()) {
+      U.toast(inFrame() ? 'Камера недоступна в этой версии. Откройте установленное приложение.' : 'Этот браузер не умеет сканировать QR-коды. Используйте «Отправить файлом».', 4000);
+      return;
+    }
+    let stream;
+    try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false }); }
+    catch (e) { U.toast('Нет доступа к камере.'); return; }
+    const video = h('video', { class: 'qr-video', playsinline: true, muted: true, autoplay: true });
+    video.srcObject = stream;
+    const status = h('div', { class: 'small' }, 'Наведите камеру на QR-код на другом экране');
+    const bar = h('i');
+    let stopped = false, got = {}, total = 0, session = '';
+    const stopAll = () => { stopped = true; stream.getTracks().forEach(t => t.stop()); };
+    U.sheet(h('div', { class: 'stack', style: 'align-items:center;text-align:center' },
+      h('h2', { class: 'h2' }, 'Сканирование'),
+      video, h('div', { class: 'progress', style: 'width:100%' }, bar), status,
+      h('button', { class: 'btn block', type: 'button', onclick: () => U.closeSheet() }, 'Отмена')
+    ), { onClose: stopAll });
+    const ov = document.getElementById('overlay');
+    const obs = new MutationObserver(() => { if (ov.hidden) { stopAll(); obs.disconnect(); } });
+    obs.observe(ov, { attributes: true, attributeFilter: ['hidden'] });
+
+    let detector;
+    try { detector = new window.BarcodeDetector({ formats: ['qr_code'] }); } catch (e) { status.textContent = 'Сканер недоступен.'; return; }
+    try { await video.play(); } catch (e) { /* autoplay attribute handles it */ }
+    const tick = async () => {
+      if (stopped) return;
+      try {
+        const codes = await detector.detect(video);
+        codes.forEach(c => {
+          const m = /^EZ1\/(\w+)\/(\d+)\/(\d+)\/(.*)$/s.exec(c.rawValue || '');
+          if (!m) return;
+          if (session && m[1] !== session) { got = {}; }
+          session = m[1];
+          total = +m[3];
+          got[m[2]] = m[4];
+        });
+        const have = Object.keys(got).length;
+        if (total) {
+          bar.style.width = Math.round(have / total * 100) + '%';
+          status.textContent = 'Получено ' + have + ' из ' + total;
+        }
+        if (total && have === total) {
+          stopAll();
+          obs.disconnect();
+          let payload = '';
+          for (let i = 1; i <= total; i++) payload += got[i];
+          U.closeSheet();
+          importText(await T.unpack(payload));
+          return;
+        }
+      } catch (e) { /* frame not ready yet */ }
+      setTimeout(tick, 160);
+    };
+    video.addEventListener('loadeddata', tick, { once: true });
+  };
+
+  async function importText(text) {
+    let info = '';
+    try { const s = JSON.parse(text).state; info = s ? (Object.keys(s.items || {}).length + ' слов и букв, ' + (s.stats ? s.stats.xp : 0) + ' XP') : ''; } catch (e) { /* shown below */ }
+    const ok = await U.confirm({ title: 'Заменить прогресс?', text: 'Прогресс с другого устройства: ' + (info || 'получен') + '. Текущий прогресс на этом устройстве будет заменён.', ok: 'Заменить', danger: true });
+    if (!ok) return;
+    try { St.importJSON(text); A.App.applyTheme(); U.toast('Прогресс перенесён'); A.App.show('home'); }
+    catch (e) { U.toast('Не получилось: ' + e.message); }
+  }
+  T.importText = importText;
+
+  // ---------- File ----------
+  T.shareFile = async function () {
+    const name = 'english-zero-' + U.dayKey() + '.json';
+    const file = new File([St.exportJSON()], name, { type: 'application/json' });
+    if (navigator.canShare && navigator.canShare({ files: [file] })) {
+      try { await navigator.share({ files: [file], title: 'Прогресс: Английский с нуля' }); return; }
+      catch (e) { if (e && e.name === 'AbortError') return; }
+    }
+    if (inFrame()) { U.toast('Здесь файл сохранить нельзя — используйте «Копию текстом».', 3500); return; }
+    const a = h('a', { href: URL.createObjectURL(file), download: name });
+    document.body.append(a);
+    a.click();
+    a.remove();
+  };
+  T.pickFile = function () {
+    const input = h('input', { type: 'file', accept: '.json,application/json,text/plain', hidden: true });
+    input.onchange = () => {
+      const f = input.files && input.files[0];
+      if (!f) return;
+      const r = new FileReader();
+      r.onload = () => importText(String(r.result));
+      r.readAsText(f);
+      input.remove();
+    };
+    document.body.append(input);
+    input.click();
+  };
+})(window.A);
+
+</script>
+<script>
+'use strict';
+// Conversation practice with Claude (role-play). Works only inside the claude.ai artifact viewer,
+// where the page may ask Claude on the viewer's own account (`sample` capability). Elsewhere it is hidden.
+(function (A) {
+  const U = A.U, h = U.h, Sp = A.Speech, St = A.Store, C = A.Course;
+  const AI = A.AI = {};
+  AI.ARTIFACT_URL = 'https://claude.ai/artifact/3DTEvCaNh8cAQ5k3bLqRyn';
+
+  let sample = null;
+  let state = 'unknown'; // unknown | ready | none | denied
+  const listeners = [];
+  AI.onChange = fn => listeners.push(fn);
+  AI.state = () => state;
+  function setState(s) { state = s; listeners.forEach(fn => fn(s)); }
+
+  // `host` defaults to the viewer's window.claude; passing one replaces the current connection
+  AI.detect = function (host) {
+    if (state !== 'unknown' && !host) return;
+    const c = host || window.claude;
+    if (!c || typeof c.use !== 'function') { setState('none'); return; }
+    c.use('sample').then(fn => { sample = fn; setState(fn ? 'ready' : 'none'); }).catch(() => setState('none'));
+  };
+
+  const SCENES = [
+    { id: 'cafe', t: 'Кафе', d: 'Закажите кофе и что-нибудь поесть', who: 'Mia', setting: 'a small coffee shop in New York. You are Mia, a friendly barista. The learner is a customer who wants to order.' },
+    { id: 'airport', t: 'Паспортный контроль', d: 'Ответьте на вопросы офицера', who: 'Officer', setting: 'passport control at JFK airport in New York. You are a polite officer asking simple questions. The learner is arriving.' },
+    { id: 'hotel', t: 'Отель', d: 'Заселитесь в номер', who: 'Receptionist', setting: 'a hotel reception desk. You are a friendly receptionist. The learner has a reservation and wants to check in.' },
+    { id: 'shop', t: 'Магазин одежды', d: 'Купите тёплую куртку', who: 'Clerk', setting: 'a clothes store. You are a helpful shop assistant. The learner wants to buy a warm jacket.' },
+    { id: 'street', t: 'На улице', d: 'Спросите дорогу до метро', who: 'Sam', setting: 'a street in Manhattan. You are Sam, a kind local. The learner is lost and asks for directions to the subway.' },
+    { id: 'neighbor', t: 'Новый сосед', d: 'Познакомьтесь с соседом Беном', who: 'Ben', setting: 'an apartment building. You are Ben, a cheerful teacher who lives next door. You meet the learner for the first time.' },
+    { id: 'free', t: 'Свободная тема', d: 'Поговорите с Анной о чём угодно', who: 'Anna', setting: 'a casual chat. You are Anna, a programmer from Moscow who moved to New York and learned English from zero. You are kind and curious.' }
+  ];
+
+  function knownWords() {
+    const words = Object.keys(St.state.items).map(id => C.items[id]).filter(it => it && it.kind === 'word' && /^[a-z]+$/i.test(it.en)).map(it => it.en.toLowerCase());
+    return words.slice(-250).join(', ');
+  }
+  function rules(scene) {
+    const known = knownWords();
+    return [
+      'You are a role-play partner in an English learning app. The learner is a Russian-speaking adult beginner (CEFR A1).',
+      'Scene: ' + scene.setting,
+      'Rules:',
+      '- Stay in character. Use very simple English: 1-2 short sentences, at most 15 words in total, present or simple past, common words.',
+      known ? '- Prefer words the learner already knows: ' + known + '.' : '- Use only the most common English words.',
+      '- Keep the conversation going. Usually end with one simple question.',
+      '- If the learner\'s last message has a grammar or word mistake, put a short friendly correction in Russian in "fix": first the corrected English sentence in quotes, then one short explanation in Russian. If there is no mistake, "fix" is "".',
+      '- If the learner writes in Russian, answer in character in English and in "fix" show (in Russian) how to say their message in English.',
+      '- Give 3 short, different things the learner could say next (A1 level English) in "options".',
+      'Reply with only JSON: {"say": "your English line", "ru": "Russian translation of say", "fix": "", "options": ["...", "...", "..."]}'
+    ].join('\n');
+  }
+
+  const ERR = {
+    not_granted: 'Разговор с ИИ не разрешён. Разрешить можно в меню этой страницы (Permissions).',
+    sampling_disabled: 'ИИ недоступен для этого аккаунта.',
+    rate_limited: 'Слишком много сообщений подряд или исчерпан лимит. Попробуйте чуть позже.',
+    session_expired: 'Нужно заново войти в claude.ai.',
+    refused: 'ИИ не стал отвечать на это сообщение. Попробуйте сказать иначе.'
+  };
+  const PERMANENT = ['not_granted', 'sampling_disabled', 'not_declared', 'capability_disabled', 'capability_removed'];
+
+  // ---------- Scene picker ----------
+  AI.open = function () {
+    if (state !== 'ready') { U.toast('Разговор с ИИ работает в версии на claude.ai'); return; }
+    U.sheet(h('div', { class: 'stack' },
+      h('h2', { class: 'h2' }, 'Разговор с ИИ'),
+      h('p', { class: 'muted small' }, 'Собеседник говорит простым английским, исправляет ошибки по-русски и подсказывает варианты ответа. Пишите по-английски, а если не знаете как — можно по-русски.'),
+      h('div', { class: 'choice-list' }, SCENES.map(s => h('button', { class: 'choice', type: 'button', onclick: () => { U.closeSheet(); chat(s); } },
+        h('span', {}, h('b', {}, s.t), h('span', {}, s.d)))))));
+  };
+
+  // ---------- Chat ----------
+  let ctl = null;
+  function chat(scene) {
+    const turns = [{ role: 'user', content: rules(scene) + '\n\nStart the conversation with your first line.' }];
+    let sent = 0, busy = false;
+    A.App.enterFocus();
+    const list = h('div', { class: 'story-lines ai-chat' });
+    const chips = h('div', { class: 'chips ai-chips' });
+    const input = h('input', { class: 'search', id: 'ai-input', type: 'text', placeholder: 'Напишите по-английски…', autocomplete: 'off', enterkeyhint: 'send' });
+    const send = h('button', { class: 'btn primary', type: 'button' }, 'Отправить');
+    const stop = h('button', { class: 'btn ghost sm', type: 'button', hidden: true, onclick: () => ctl && ctl.abort() }, 'Остановить');
+    const close = h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Закрыть', html: U.icon('close'), onclick: exit });
+    U.$('#main').replaceChildren(h('div', { class: 'lesson' },
+      h('div', { class: 'lesson-top' }, close, h('div', { class: 'grow' }, h('b', {}, scene.t), h('div', { class: 'small muted' }, 'Разговор с ИИ · ' + scene.who))),
+      h('div', { class: 'lesson-body' }, list),
+      h('div', { class: 'lesson-foot' }, chips, stop, h('div', { class: 'row', style: 'margin-top:8px' }, input, send))));
+
+    function exit() {
+      if (ctl) ctl.abort();
+      if (sent) { A.Progress.addXP(Math.min(20, sent * 2), 0); St.state.stats.aiMessages = (St.state.stats.aiMessages || 0) + sent; A.Progress.checkBadges(); St.save(); }
+      A.App.exitFocus();
+    }
+    const scroll = n => setTimeout(() => n.scrollIntoView({ behavior: 'smooth', block: 'end' }), 30);
+    function aiBubble(r) {
+      const ru = h('div', { class: 'line-ru', hidden: true }, r.ru || '');
+      const b = h('div', { class: 'bubble' }, h('div', { class: 'who' }, scene.who), h('div', { class: 'line-en en' }, r.say),
+        ru, h('div', { class: 'line-tools' },
+          h('button', { class: 'au xs', type: 'button', 'aria-label': 'Прослушать', html: U.icon('speaker'), onclick: () => Sp.speak(r.say) }),
+          r.ru ? h('button', { class: 'btn sm ghost', type: 'button', onclick: () => { ru.hidden = !ru.hidden; } }, 'Перевод') : null));
+      list.append(b);
+      scroll(b);
+    }
+    function note(text, cls) {
+      const n = h('div', { class: 'ai-note ' + (cls || '') }, text);
+      list.append(n);
+      scroll(n);
+      return n;
+    }
+    function setChips(opts) {
+      U.fill(chips, (opts || []).slice(0, 3).map(o => h('button', { class: 'chip en', type: 'button', onclick: () => { input.value = o; input.focus(); } }, o)));
+    }
+    async function ask() {
+      busy = true;
+      send.disabled = true;
+      stop.hidden = false;
+      const typing = note('Собеседник печатает…', 'typing');
+      ctl = new AbortController();
+      try {
+        const r = await sample.json(turns, { modelTier: 'quick', cache: false, signal: ctl.signal });
+        typing.remove();
+        if (!r || typeof r.say !== 'string') throw { code: 'invalid_json' };
+        turns.push({ role: 'assistant', content: JSON.stringify(r) });
+        if (r.fix) note(r.fix, 'fix');
+        aiBubble(r);
+        setChips(Array.isArray(r.options) ? r.options.map(String) : []);
+      } catch (e) {
+        typing.remove();
+        if (e && e.code === 'cancelled') { note('Остановлено.'); }
+        else {
+          if (e && PERMANENT.includes(e.code)) setState('denied');
+          note((e && ERR[e.code]) || 'Не получилось получить ответ. Попробуйте отправить ещё раз.', 'err');
+          if (turns.length > 1 && turns[turns.length - 1].role === 'user') turns.pop();
+        }
+      } finally {
+        busy = false;
+        send.disabled = false;
+        stop.hidden = true;
+        ctl = null;
+      }
+    }
+    function submit() {
+      const text = input.value.trim();
+      if (!text || busy) return;
+      input.value = '';
+      const b = h('div', { class: 'bubble right' }, h('div', { class: 'who' }, 'Вы'), h('div', { class: 'line-en en' }, text));
+      list.append(b);
+      scroll(b);
+      setChips([]);
+      turns.push({ role: 'user', content: text });
+      // keep the instructions turn and the last exchanges
+      while (turns.length > 21) turns.splice(1, 2);
+      sent++;
+      ask();
+    }
+    send.onclick = submit;
+    input.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); submit(); } });
+    ask();
   }
 })(window.A);
 
@@ -3792,6 +5329,18 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
         h('div', { class: 'num' }, due),
         h('div', { class: 'grow' }, h('b', {}, 'Пора повторить'), h('div', { class: 'small muted' }, U.plural(due, ['слово начинает', 'слова начинают', 'слов начинают']) + ' забываться')),
         h('button', { class: 'btn sm', type: 'button', onclick: () => A.Lesson.startReview() }, 'Повторить')));
+    }
+    if (Sp.muted()) {
+      cards.append(h('div', { class: 'card review-card' },
+        h('div', { class: 'num', style: 'font-size:22px' }, '🔇'),
+        h('div', { class: 'grow' }, h('b', {}, 'Режим без звука'), h('div', { class: 'small muted' }, 'Ещё ' + Sp.mutedMinutes() + ' мин. Задания на слух пропускаются.')),
+        h('button', { class: 'btn sm', type: 'button', onclick: () => { Sp.unmute(); A.App.show('home'); } }, 'Включить звук')));
+    }
+    if (A.AI.state() === 'ready' && Object.keys(s.lessons).length >= 3) {
+      cards.append(h('button', { class: 'card review-card ai-card', type: 'button', onclick: () => A.AI.open() },
+        h('div', { class: 'num', style: 'background:color-mix(in srgb, var(--dial) 16%, var(--surface));color:var(--dial)' }, 'AI'),
+        h('div', { class: 'grow', style: 'text-align:left' }, h('b', {}, 'Разговор с ИИ'), h('div', { class: 'small muted' }, 'Кафе, аэропорт, отель — собеседник поправит ошибки')),
+        h('span', { class: 'muted', html: U.icon('chevron') })));
     }
     const plan = Scr.planText();
     if (plan) cards.append(h('div', { class: 'plan-line', html: U.icon('calendar') + '<span>Ваш план: <b>' + U.escape(plan) + '</b></span>' }));
@@ -3920,10 +5469,10 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
   function dictRow(it, card) {
     const r = A.SRS.retr(card);
     const on = Math.max(1, Math.ceil(r * 4));
-    const pic = it.kind === 'letter' ? it.pic : it.kind === 'pair' ? it.a.pic + it.b.pic : it.pic;
+    const pic = it.kind === 'letter' ? it.pic : it.kind === 'pair' ? it.a.pic + it.b.pic : it.kind === 'pat' ? 'Аа' : it.pic;
     const en = it.kind === 'letter' ? it.ch : it.en;
-    const ru = it.kind === 'letter' ? 'как в ' + it.key + ' — ' + it.keyRu : it.ru;
-    const say = it.kind === 'letter' ? it.key : it.kind === 'pair' ? it.a.en + '. ' + it.b.en : it.en;
+    const ru = it.kind === 'letter' ? 'как в ' + it.key + ' — ' + it.keyRu : it.kind === 'pat' ? 'правило: ' + it.ru : it.ru;
+    const say = it.kind === 'letter' ? it.key : it.kind === 'pat' ? it.variants[0].en : it.en;
     return h('button', { class: 'dict-row', type: 'button', onclick: () => (it.kind === 'pair' ? Sp.speakSeq([it.a.en, it.b.en]) : Sp.speak(say)) },
       h('span', { class: 'pic' + (U.isTextPic(pic) ? ' txt' : '') }, pic || ''),
       h('span', { style: 'min-width:0' }, h('div', { class: 'en' }, en), h('div', { class: 'ru' }, ru)),
@@ -3940,7 +5489,7 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
       const q = dictState.q.trim().toLowerCase();
       const f = dictState.f;
       const rows = all.filter(it => {
-        if (f === 'phrase' ? !(it.kind === 'phrase' || it.kind === 'sent') : (f !== 'all' && it.kind !== f)) return false;
+        if (f === 'phrase' ? !(it.kind === 'phrase' || it.kind === 'sent' || it.kind === 'pat') : (f !== 'all' && it.kind !== f)) return false;
         if (!q) return true;
         return (it.en + ' ' + (it.ru || '') + ' ' + (it.key || '') + ' ' + (it.keyRu || '')).toLowerCase().includes(q);
       }).sort((a, b) => (a.kind === 'letter') - (b.kind === 'letter') || a.en.localeCompare(b.en));
@@ -4021,7 +5570,14 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     voiceSel.onchange = async () => {
       const v = voiceSel.value;
       if (v.slice(0, 4) === 'tts:') { s.settings.voice = 'tts'; s.settings.voiceURI = v.slice(4); }
-      else { s.settings.voice = v; St.save(); fillVoices(); await Sp.loadPack(v); }
+      else {
+        s.settings.voice = v;
+        St.save();
+        fillVoices();
+        await Sp.loadPack(v);
+        Sp.loadPack(v + '-more');
+        Sp.loadPack(v + '-slow');
+      }
       St.save();
       fillVoices();
       Sp.speak('Hello! Nice to meet you.');
@@ -4066,7 +5622,8 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
         setRow('Голос', voiceNote, voiceSel, 'set-voice'),
         setRow('Скорость речи', null, rate, 'set-rate'),
         setRow('Проверить звук', null, h('button', { class: 'btn sm', type: 'button', onclick: () => Sp.speak('Hello! Let’s learn English.') }, 'Слушать')),
-        setRow('Упражнения с микрофоном', Sp.recSupported ? 'Распознавание речи (нужен интернет)' : 'Не поддерживается этим браузером', sw('set-mic', s.settings.mic && Sp.recSupported, v => { saveSetting('mic', v); if (v) Sp.micBlocked = false; }, !Sp.recSupported), 'set-mic'),
+        setRow('Упражнения с микрофоном', Sp.framed ? 'Недоступны в версии claude.ai — работают в установленном приложении' : Sp.recSupported ? 'Произношение и «Послушайте и повторите»' : 'Распознавание речи не поддерживается этим браузером',
+          sw('set-mic', s.settings.mic && !Sp.framed, v => { saveSetting('mic', v); if (v) { Sp.micBlocked = false; Sp.recBlocked = false; } }, Sp.framed), 'set-mic'),
         setRow('Звуки ответов', null, sw('set-sfx', s.settings.sfx, v => saveSetting('sfx', v)), 'set-sfx'),
         setRow('Вибрация', null, sw('set-vib', s.settings.vibrate, v => saveSetting('vibrate', v)), 'set-vib'),
         setRow('Тема', null, themeSel, 'set-theme'),
@@ -4076,8 +5633,16 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
       h('button', { class: 'card row', type: 'button', style: 'width:100%;border:0;text-align:left', onclick: () => A.App.show('science') },
         h('span', { html: U.icon('flask') }), h('span', { class: 'grow' }, h('b', {}, 'Научная основа курса'), h('div', { class: 'small muted' }, 'Какие исследования легли в основу и как они применены')), h('span', { html: U.icon('chevron') })),
 
-      h('h2', { class: 'h2 section-title' }, 'Резервная копия'),
-      backupCard(),
+      h('h2', { class: 'h2 section-title' }, 'Разговор с ИИ'),
+      A.AI.state() === 'ready'
+        ? h('button', { class: 'card row', type: 'button', style: 'width:100%;border:0;text-align:left', onclick: () => A.AI.open() },
+          h('span', { class: 'grow' }, h('b', {}, 'Поговорить с собеседником'), h('div', { class: 'small muted' }, 'Ролевые сценки: кафе, аэропорт, отель, магазин')), h('span', { html: U.icon('chevron') }))
+        : h('div', { class: 'card stack' }, h('p', { class: 'small' }, 'Ролевые сценки с ИИ (кафе, аэропорт, отель) работают в версии приложения на claude.ai — там ИИ отвечает от вашего аккаунта Claude.'),
+          h('a', { class: 'btn sm', href: A.AI.ARTIFACT_URL, target: '_blank', rel: 'noopener' }, 'Открыть версию claude.ai')),
+
+      h('h2', { class: 'h2 section-title' }, 'Перенос прогресса'),
+      transferCard(),
+      h('details', { class: 'card', style: 'margin-top:10px' }, h('summary', { class: 'small', style: 'cursor:pointer' }, 'Копия текстом'), h('div', { style: 'margin-top:10px' }, backupCard())),
 
       h('div', { style: 'margin-top:26px;text-align:center' },
         h('button', { class: 'btn ghost danger sm', type: 'button', onclick: resetAll }, 'Сбросить весь прогресс')),
@@ -4086,6 +5651,18 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
 
   // Embedded pages (e.g. a claude.ai preview) cannot start file downloads
   function inFrame() { try { return window.top !== window.self; } catch (e) { return true; } }
+
+  function transferCard() {
+    const T = A.Transfer;
+    return h('div', { class: 'card stack' },
+      h('p', { class: 'small muted' }, 'Прогресс хранится на каждом устройстве отдельно. Чтобы продолжить на телефоне с того же места, покажите QR-код на компьютере и отсканируйте его телефоном. Или отправьте себе файл, например в Telegram.'),
+      h('div', { class: 'transfer-grid' },
+        h('button', { class: 'btn sm', type: 'button', onclick: () => T.showQR() }, 'Показать QR-код'),
+        h('button', { class: 'btn sm', type: 'button', onclick: () => T.scan(), disabled: !T.canScan(), title: T.canScan() ? '' : 'Нужен Chrome на Android' }, 'Сканировать QR-код'),
+        h('button', { class: 'btn sm', type: 'button', onclick: () => T.shareFile() }, 'Отправить файлом'),
+        h('button', { class: 'btn sm', type: 'button', onclick: () => T.pickFile() }, 'Загрузить из файла')),
+      T.canScan() ? null : h('p', { class: 'small muted' }, 'Сканировать можно в установленном приложении на телефоне Android (Chrome).'));
+  }
 
   function backupCard() {
     const out = h('textarea', { class: 'backup', id: 'backup-out', readonly: true, hidden: true });
@@ -4162,7 +5739,11 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
     ['Разные голоса для трудных звуков', 'Чтобы слышать разницу между ship и sheep, полезно слушать её разными голосами и сразу получать ответ, верно ли. Это метод HVPT — у него средний и большой эффект.', 'Uchihara, Karas & Thomson, 2025 — мета-анализ 79 исследований'],
     ['Трудности русскоговорящих', 'Отдельно тренируем то, чего нет в русском: th, разницу w и v, долгие и короткие гласные, артикли и глагол am/is/are.', 'Сопоставительная фонетика и грамматика русского и английского'],
     ['Говорить вслух', 'Распознавание речи с обратной связью улучшает произношение (средний эффект). Микрофон можно выключить в любой момент.', 'Ngo, Chen & Lai, 2024 — мета-анализ, g = 0.69'],
-    ['Ошибки — часть обучения', 'Учиться быстрее всего, когда получается примерно 85% ответов. Поэтому ошибки не наказываются: задание просто вернётся чуть позже и в более лёгком виде.', 'Wilson et al., 2019, Nature Communications'],
+    ['Объяснение, а не только ответ', 'При ошибке приложение объясняет, почему вариант не подходит: «с I всегда am», «ee — долгое и-и». Развёрнутая обратная связь помогает сильнее, чем просто «верно / неверно».', 'Van der Kleij, Feskens & Eggen, 2015 — мета-анализ обратной связи в обучающих программах'],
+    ['Слушать и повторять (shadowing)', 'В задании «Послушайте и повторите» вы записываете себя и сразу слышите образец и свой голос. Такое повторение за диктором улучшает понятность речи и беглость.', 'Foote & McDonough, 2017; Hamada, 2016'],
+    ['Правило на разных примерах', 'Грамматика тренируется на всё новых предложениях, а не на одной заученной фразе. Разнообразные примеры помогают переносить правило на новые случаи.', 'Raviv, Lupyan & Green, 2022 — обзор о вариативности в обучении'],
+    ['Разговор с обратной связью', 'Диалоги и сценки с ИИ — это общение, где собеседник мягко исправляет ошибки. Такое взаимодействие с исправлениями ускоряет освоение языка.', 'Mackey & Goo, 2007 — мета-анализ исследований взаимодействия'],
+    ['Ошибки — часть обучения','Учиться быстрее всего, когда получается примерно 85% ответов. Поэтому ошибки не наказываются: задание просто вернётся чуть позже и в более лёгком виде.', 'Wilson et al., 2019, Nature Communications'],
     ['Игра и история', 'Очки, серии и награды в среднем улучшают и знания, и мотивацию, особенно когда есть сюжет. Поэтому у курса есть маршрут и героиня Анна.', 'Sailer & Homner, 2020 — мета-анализ геймификации'],
     ['План «когда и где»', 'Фраза «Когда я пью кофе, я открываю английский» повышает шанс заниматься регулярно. Привычка складывается в среднем за 66 дней, и один пропуск её не ломает.', 'Gollwitzer & Sheeran, 2006; Lally et al., 2010'],
     ['Частотные слова и истории', 'Сначала учим самые нужные слова, а затем читаем короткие истории из выученных слов: такое чтение расширяет словарь.', 'Nation, 2006; Nakanishi, 2015 — мета-анализ extensive reading']
@@ -4362,10 +5943,11 @@ A.DATA = { letters: {}, units: [], stories: {}, gloss: {}, zones: {} };
       U.$('#main').replaceChildren(U.h('p', { class: 'boot' }, 'Ошибка в учебных данных: ' + e.message));
       throw e;
     }
-    // Recorded audio: the chosen voice and the shared pack (stories, sound pairs)
-    const voice = A.Speech.voiceMode();
-    A.Speech.loadPack(voice === 'tts' ? A.Speech.mainVoices()[0].id : voice);
-    A.Speech.loadPack('shared');
+    // Recorded audio: the chosen voice first, the rest in the background
+    A.Speech.preload();
+    // Conversation with Claude is available only inside the claude.ai viewer
+    A.AI.onChange(s => { if (s === 'ready' && !focus && St.state.onboarded && (tab === 'home' || tab === 'profile')) App.show(tab); });
+    A.AI.detect();
     U.$$('.tab').forEach(b => {
       const ico = b.querySelector('.tab-ico');
       ico.innerHTML = U.icon(ico.dataset.icon);

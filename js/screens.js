@@ -63,6 +63,18 @@
         h('div', { class: 'grow' }, h('b', {}, 'Пора повторить'), h('div', { class: 'small muted' }, U.plural(due, ['слово начинает', 'слова начинают', 'слов начинают']) + ' забываться')),
         h('button', { class: 'btn sm', type: 'button', onclick: () => A.Lesson.startReview() }, 'Повторить')));
     }
+    if (Sp.muted()) {
+      cards.append(h('div', { class: 'card review-card' },
+        h('div', { class: 'num', style: 'font-size:22px' }, '🔇'),
+        h('div', { class: 'grow' }, h('b', {}, 'Режим без звука'), h('div', { class: 'small muted' }, 'Ещё ' + Sp.mutedMinutes() + ' мин. Задания на слух пропускаются.')),
+        h('button', { class: 'btn sm', type: 'button', onclick: () => { Sp.unmute(); A.App.show('home'); } }, 'Включить звук')));
+    }
+    if (A.AI.state() === 'ready' && Object.keys(s.lessons).length >= 3) {
+      cards.append(h('button', { class: 'card review-card ai-card', type: 'button', onclick: () => A.AI.open() },
+        h('div', { class: 'num', style: 'background:color-mix(in srgb, var(--dial) 16%, var(--surface));color:var(--dial)' }, 'AI'),
+        h('div', { class: 'grow', style: 'text-align:left' }, h('b', {}, 'Разговор с ИИ'), h('div', { class: 'small muted' }, 'Кафе, аэропорт, отель — собеседник поправит ошибки')),
+        h('span', { class: 'muted', html: U.icon('chevron') })));
+    }
     const plan = Scr.planText();
     if (plan) cards.append(h('div', { class: 'plan-line', html: U.icon('calendar') + '<span>Ваш план: <b>' + U.escape(plan) + '</b></span>' }));
 
@@ -190,10 +202,10 @@
   function dictRow(it, card) {
     const r = A.SRS.retr(card);
     const on = Math.max(1, Math.ceil(r * 4));
-    const pic = it.kind === 'letter' ? it.pic : it.kind === 'pair' ? it.a.pic + it.b.pic : it.pic;
+    const pic = it.kind === 'letter' ? it.pic : it.kind === 'pair' ? it.a.pic + it.b.pic : it.kind === 'pat' ? 'Аа' : it.pic;
     const en = it.kind === 'letter' ? it.ch : it.en;
-    const ru = it.kind === 'letter' ? 'как в ' + it.key + ' — ' + it.keyRu : it.ru;
-    const say = it.kind === 'letter' ? it.key : it.kind === 'pair' ? it.a.en + '. ' + it.b.en : it.en;
+    const ru = it.kind === 'letter' ? 'как в ' + it.key + ' — ' + it.keyRu : it.kind === 'pat' ? 'правило: ' + it.ru : it.ru;
+    const say = it.kind === 'letter' ? it.key : it.kind === 'pat' ? it.variants[0].en : it.en;
     return h('button', { class: 'dict-row', type: 'button', onclick: () => (it.kind === 'pair' ? Sp.speakSeq([it.a.en, it.b.en]) : Sp.speak(say)) },
       h('span', { class: 'pic' + (U.isTextPic(pic) ? ' txt' : '') }, pic || ''),
       h('span', { style: 'min-width:0' }, h('div', { class: 'en' }, en), h('div', { class: 'ru' }, ru)),
@@ -210,7 +222,7 @@
       const q = dictState.q.trim().toLowerCase();
       const f = dictState.f;
       const rows = all.filter(it => {
-        if (f === 'phrase' ? !(it.kind === 'phrase' || it.kind === 'sent') : (f !== 'all' && it.kind !== f)) return false;
+        if (f === 'phrase' ? !(it.kind === 'phrase' || it.kind === 'sent' || it.kind === 'pat') : (f !== 'all' && it.kind !== f)) return false;
         if (!q) return true;
         return (it.en + ' ' + (it.ru || '') + ' ' + (it.key || '') + ' ' + (it.keyRu || '')).toLowerCase().includes(q);
       }).sort((a, b) => (a.kind === 'letter') - (b.kind === 'letter') || a.en.localeCompare(b.en));
@@ -291,7 +303,14 @@
     voiceSel.onchange = async () => {
       const v = voiceSel.value;
       if (v.slice(0, 4) === 'tts:') { s.settings.voice = 'tts'; s.settings.voiceURI = v.slice(4); }
-      else { s.settings.voice = v; St.save(); fillVoices(); await Sp.loadPack(v); }
+      else {
+        s.settings.voice = v;
+        St.save();
+        fillVoices();
+        await Sp.loadPack(v);
+        Sp.loadPack(v + '-more');
+        Sp.loadPack(v + '-slow');
+      }
       St.save();
       fillVoices();
       Sp.speak('Hello! Nice to meet you.');
@@ -336,7 +355,8 @@
         setRow('Голос', voiceNote, voiceSel, 'set-voice'),
         setRow('Скорость речи', null, rate, 'set-rate'),
         setRow('Проверить звук', null, h('button', { class: 'btn sm', type: 'button', onclick: () => Sp.speak('Hello! Let’s learn English.') }, 'Слушать')),
-        setRow('Упражнения с микрофоном', Sp.recSupported ? 'Распознавание речи (нужен интернет)' : 'Не поддерживается этим браузером', sw('set-mic', s.settings.mic && Sp.recSupported, v => { saveSetting('mic', v); if (v) Sp.micBlocked = false; }, !Sp.recSupported), 'set-mic'),
+        setRow('Упражнения с микрофоном', Sp.framed ? 'Недоступны в версии claude.ai — работают в установленном приложении' : Sp.recSupported ? 'Произношение и «Послушайте и повторите»' : 'Распознавание речи не поддерживается этим браузером',
+          sw('set-mic', s.settings.mic && !Sp.framed, v => { saveSetting('mic', v); if (v) { Sp.micBlocked = false; Sp.recBlocked = false; } }, Sp.framed), 'set-mic'),
         setRow('Звуки ответов', null, sw('set-sfx', s.settings.sfx, v => saveSetting('sfx', v)), 'set-sfx'),
         setRow('Вибрация', null, sw('set-vib', s.settings.vibrate, v => saveSetting('vibrate', v)), 'set-vib'),
         setRow('Тема', null, themeSel, 'set-theme'),
@@ -346,8 +366,16 @@
       h('button', { class: 'card row', type: 'button', style: 'width:100%;border:0;text-align:left', onclick: () => A.App.show('science') },
         h('span', { html: U.icon('flask') }), h('span', { class: 'grow' }, h('b', {}, 'Научная основа курса'), h('div', { class: 'small muted' }, 'Какие исследования легли в основу и как они применены')), h('span', { html: U.icon('chevron') })),
 
-      h('h2', { class: 'h2 section-title' }, 'Резервная копия'),
-      backupCard(),
+      h('h2', { class: 'h2 section-title' }, 'Разговор с ИИ'),
+      A.AI.state() === 'ready'
+        ? h('button', { class: 'card row', type: 'button', style: 'width:100%;border:0;text-align:left', onclick: () => A.AI.open() },
+          h('span', { class: 'grow' }, h('b', {}, 'Поговорить с собеседником'), h('div', { class: 'small muted' }, 'Ролевые сценки: кафе, аэропорт, отель, магазин')), h('span', { html: U.icon('chevron') }))
+        : h('div', { class: 'card stack' }, h('p', { class: 'small' }, 'Ролевые сценки с ИИ (кафе, аэропорт, отель) работают в версии приложения на claude.ai — там ИИ отвечает от вашего аккаунта Claude.'),
+          h('a', { class: 'btn sm', href: A.AI.ARTIFACT_URL, target: '_blank', rel: 'noopener' }, 'Открыть версию claude.ai')),
+
+      h('h2', { class: 'h2 section-title' }, 'Перенос прогресса'),
+      transferCard(),
+      h('details', { class: 'card', style: 'margin-top:10px' }, h('summary', { class: 'small', style: 'cursor:pointer' }, 'Копия текстом'), h('div', { style: 'margin-top:10px' }, backupCard())),
 
       h('div', { style: 'margin-top:26px;text-align:center' },
         h('button', { class: 'btn ghost danger sm', type: 'button', onclick: resetAll }, 'Сбросить весь прогресс')),
@@ -356,6 +384,18 @@
 
   // Embedded pages (e.g. a claude.ai preview) cannot start file downloads
   function inFrame() { try { return window.top !== window.self; } catch (e) { return true; } }
+
+  function transferCard() {
+    const T = A.Transfer;
+    return h('div', { class: 'card stack' },
+      h('p', { class: 'small muted' }, 'Прогресс хранится на каждом устройстве отдельно. Чтобы продолжить на телефоне с того же места, покажите QR-код на компьютере и отсканируйте его телефоном. Или отправьте себе файл, например в Telegram.'),
+      h('div', { class: 'transfer-grid' },
+        h('button', { class: 'btn sm', type: 'button', onclick: () => T.showQR() }, 'Показать QR-код'),
+        h('button', { class: 'btn sm', type: 'button', onclick: () => T.scan(), disabled: !T.canScan(), title: T.canScan() ? '' : 'Нужен Chrome на Android' }, 'Сканировать QR-код'),
+        h('button', { class: 'btn sm', type: 'button', onclick: () => T.shareFile() }, 'Отправить файлом'),
+        h('button', { class: 'btn sm', type: 'button', onclick: () => T.pickFile() }, 'Загрузить из файла')),
+      T.canScan() ? null : h('p', { class: 'small muted' }, 'Сканировать можно в установленном приложении на телефоне Android (Chrome).'));
+  }
 
   function backupCard() {
     const out = h('textarea', { class: 'backup', id: 'backup-out', readonly: true, hidden: true });
@@ -432,7 +472,11 @@
     ['Разные голоса для трудных звуков', 'Чтобы слышать разницу между ship и sheep, полезно слушать её разными голосами и сразу получать ответ, верно ли. Это метод HVPT — у него средний и большой эффект.', 'Uchihara, Karas & Thomson, 2025 — мета-анализ 79 исследований'],
     ['Трудности русскоговорящих', 'Отдельно тренируем то, чего нет в русском: th, разницу w и v, долгие и короткие гласные, артикли и глагол am/is/are.', 'Сопоставительная фонетика и грамматика русского и английского'],
     ['Говорить вслух', 'Распознавание речи с обратной связью улучшает произношение (средний эффект). Микрофон можно выключить в любой момент.', 'Ngo, Chen & Lai, 2024 — мета-анализ, g = 0.69'],
-    ['Ошибки — часть обучения', 'Учиться быстрее всего, когда получается примерно 85% ответов. Поэтому ошибки не наказываются: задание просто вернётся чуть позже и в более лёгком виде.', 'Wilson et al., 2019, Nature Communications'],
+    ['Объяснение, а не только ответ', 'При ошибке приложение объясняет, почему вариант не подходит: «с I всегда am», «ee — долгое и-и». Развёрнутая обратная связь помогает сильнее, чем просто «верно / неверно».', 'Van der Kleij, Feskens & Eggen, 2015 — мета-анализ обратной связи в обучающих программах'],
+    ['Слушать и повторять (shadowing)', 'В задании «Послушайте и повторите» вы записываете себя и сразу слышите образец и свой голос. Такое повторение за диктором улучшает понятность речи и беглость.', 'Foote & McDonough, 2017; Hamada, 2016'],
+    ['Правило на разных примерах', 'Грамматика тренируется на всё новых предложениях, а не на одной заученной фразе. Разнообразные примеры помогают переносить правило на новые случаи.', 'Raviv, Lupyan & Green, 2022 — обзор о вариативности в обучении'],
+    ['Разговор с обратной связью', 'Диалоги и сценки с ИИ — это общение, где собеседник мягко исправляет ошибки. Такое взаимодействие с исправлениями ускоряет освоение языка.', 'Mackey & Goo, 2007 — мета-анализ исследований взаимодействия'],
+    ['Ошибки — часть обучения','Учиться быстрее всего, когда получается примерно 85% ответов. Поэтому ошибки не наказываются: задание просто вернётся чуть позже и в более лёгком виде.', 'Wilson et al., 2019, Nature Communications'],
     ['Игра и история', 'Очки, серии и награды в среднем улучшают и знания, и мотивацию, особенно когда есть сюжет. Поэтому у курса есть маршрут и героиня Анна.', 'Sailer & Homner, 2020 — мета-анализ геймификации'],
     ['План «когда и где»', 'Фраза «Когда я пью кофе, я открываю английский» повышает шанс заниматься регулярно. Привычка складывается в среднем за 66 дней, и один пропуск её не ломает.', 'Gollwitzer & Sheeran, 2006; Lally et al., 2010'],
     ['Частотные слова и истории', 'Сначала учим самые нужные слова, а затем читаем короткие истории из выученных слов: такое чтение расширяет словарь.', 'Nation, 2006; Nakanishi, 2015 — мета-анализ extensive reading']

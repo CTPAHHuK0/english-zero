@@ -16,7 +16,8 @@
       S('I [am] Anna.|Я Анна.', 'is,are'), S('You [are] my friend.|Ты мой друг.', 'am,is'), S('He [is] a doctor.|Он врач.', 'am,are'),
       S('She [is] from Moscow.|Она из Москвы.', 'am,are'), S('It [is] cold.|Холодно.', 'am,are'), S('We [are] at home.|Мы дома.', 'am,is'),
       S('They [are] happy.|Они счастливы.', 'am,is'), S('I [am] not tired.|Я не устал.', 'is,are'), S('[Are] you OK?|Ты в порядке?', 'Is,Am'),
-      S('[Is] it far?|Это далеко?', 'Are,Am'), S('The coffee [is] hot.|Кофе горячий.', 'are,am'), S('My sister [is] a nurse.|Моя сестра — медсестра.', 'are,am')
+      S('[Is] it far?|Это далеко?', 'Are,Am'), S('The coffee [is] hot.|Кофе горячий.', 'are,am'), S('My sister [is] a nurse.|Моя сестра — медсестра.', 'are,am'),
+      D.pats.be
     ]
   });
 
@@ -83,7 +84,7 @@
       [S('I [work] every day.|Я работаю каждый день.', 'works,working'), S('She [works] on Monday.|Она работает в понедельник.', 'work,working'),
         S('He [doesn’t] work on Sunday.|Он не работает в воскресенье.', 'don’t,isn’t')],
       [S('We [watch] movies on Friday.|По пятницам мы смотрим фильмы.', 'watches,watching'), S('Anna [drinks] coffee every morning.|Анна пьёт кофе каждое утро.', 'drink,drinking'),
-        S('I get up at [seven].|Я встаю в семь.', 'seventh,seventy')]
+        S('I get up at [seven].|Я встаю в семь.', 'seventh,seventy'), D.pats.ps]
     ]
   });
 
@@ -117,7 +118,8 @@
       S('[Do] you speak English?|Вы говорите по-английски?', 'Are,Does'), S('[Does] he like coffee?|Он любит кофе?', 'Do,Is'),
       S('[Where] do you live?|Где вы живёте?', 'What,Who'), S('[What] do you want?|Что вы хотите?', 'Where,When'),
       S('[When] does the shop open?|Когда открывается магазин?', 'Who,What'), S('[Who] is that?|Кто это?', 'What,Where'),
-      S('[Why] are you sad?|Почему ты грустишь?', 'Who,What'), S('[How] are you today?|Как ты сегодня?', 'What,Who'), S('[Do] they work here?|Они здесь работают?', 'Does,Are')
+      S('[Why] are you sad?|Почему ты грустишь?', 'Who,What'), S('[How] are you today?|Как ты сегодня?', 'What,Who'), S('[Do] they work here?|Они здесь работают?', 'Does,Are'),
+      D.pats.q
     ]
   });
 
@@ -128,7 +130,7 @@
       { t: 'Американские слова', x: 'Квартира — <b>apartment</b>, магазин — <b>store</b>, продукты — <b>groceries</b>.' }
     ],
     items: [
-      W('apartment|квартира|🔑'), W('rent|аренда|📃'), W('neighbor|сосед|🙋‍♂️'), W('doctor|врач|🧑‍⚕️'), W('store|магазин|🏬'),
+      W('apartment|квартира|🏢🛋️'), W('rent|аренда|📃'), W('neighbor|сосед|🙋‍♂️'), W('doctor|врач|🧑‍⚕️'), W('store|магазин|🏬'),
       W('sick|больной|🤒'), W('headache|головная боль|🤕'), W('medicine|лекарство|💉'), W('card|карта (банковская)|💳'), W('cash|наличные|💴'),
       P('I need a doctor.|Мне нужен врач.|🧑‍⚕️'), P('I have a headache.|У меня болит голова.|🤕'), P('I’m looking for an apartment.|Я ищу квартиру.|🔎'),
       P('How much is the rent?|Сколько стоит аренда?|💲'), P('Can I pay by card?|Можно оплатить картой?|💳'), P('Do you take cash?|Вы принимаете наличные?|💴'),

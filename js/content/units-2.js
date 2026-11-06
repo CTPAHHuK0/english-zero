@@ -25,9 +25,9 @@
       { t: 'my, your', x: '<b>my</b> — мой, моя, моё, мои. <b>your</b> — твой, ваш. Одно слово на все роды!' }
     ],
     items: [
-      W('family|семья|👨‍👩‍👧‍👦'), W('mother|мать|🤱'), W('father|отец|🧔'), W('sister|сестра|👧'), W('brother|брат|👦'),
+      W('family|семья|👨‍👩‍👧‍👦'), W('mother|мать, мама|🤱'), W('father|отец, папа|🧔'), W('sister|сестра|👭'), W('brother|брат|👬'),
       W('wife|жена|👰'), W('husband|муж|🤵'), W('baby|малыш|👶'), W('friend|друг|🧑‍🤝‍🧑'), W('man|мужчина|👨'), W('woman|женщина|👩'),
-      P('This is my wife.|Это моя жена.|👰'), P('I have a brother.|У меня есть брат.|👦'), P('I’m married.|Я женат / замужем.|💍'), P('I have two kids.|У меня двое детей.|👧')
+      P('This is my wife.|Это моя жена.|👰'), P('I have a brother.|У меня есть брат.|👬'), P('I’m married.|Я женат / замужем.|💍'), P('I have two kids.|У меня двое детей.|👧')
     ]
   });
 
@@ -54,7 +54,7 @@
       { t: 'Счёт — check', x: 'В США счёт в кафе — <b>check</b>. А «здесь или с собой?» — <b>For here or to go?</b>' }
     ],
     items: [
-      W('water|вода|🚰'), W('coffee|кофе|☕'), W('tea|чай|🍵'), W('milk|молоко|🥛'), W('juice|сок|🧃'), W('bread|хлеб|🍞'),
+      W('water|вода|💧'), W('coffee|кофе|☕'), W('tea|чай|🍵'), W('milk|молоко|🥛'), W('juice|сок|🧃'), W('bread|хлеб|🍞'),
       W('egg|яйцо|🥚'), W('apple|яблоко|🍎'), W('banana|банан|🍌'), W('pizza|пицца|🍕'), W('chicken|курица (еда)|🍗'), W('salad|салат|🥗'),
       P('Can I have a coffee, please?|Можно мне кофе, пожалуйста?|☕'), P('A table for two, please.|Столик на двоих, пожалуйста.|🍽️'),
       P('The menu, please.|Меню, пожалуйста.|📋'), P('The check, please.|Счёт, пожалуйста.|🧾'), P('For here or to go?|Здесь или с собой?|🥡'),

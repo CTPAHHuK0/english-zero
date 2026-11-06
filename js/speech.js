@@ -1,7 +1,9 @@
 'use strict';
-// Speech output and recognition.
+// Speech output, recording and recognition.
 // Output prefers recorded neural-voice clips (audio packs from tools/make_audio.py) and falls back to the
 // device's speech synthesizer (speechSynthesis) for anything not recorded, or when the learner picks it.
+// Packs per voice: <voice> (zones 1–3), <voice>-more (zones 4–5 and grammar patterns), <voice>-slow (slow versions);
+// shared and shared-more hold story/dialogue lines and minimal pairs in character voices.
 (function (A) {
   const S = A.Speech = {};
   const synth = window.speechSynthesis;
@@ -9,6 +11,15 @@
   const settings = () => A.Store.state.settings;
   S.supported = true; // recorded audio works everywhere; ttsSupported tells about the synthesizer
   S.ttsSupported = !!synth && typeof window.SpeechSynthesisUtterance !== 'undefined';
+
+  // ---------- "Can't listen now" mode ----------
+  let mutedUntil = 0;
+  const muteListeners = [];
+  S.onMute = fn => muteListeners.push(fn);
+  S.muted = () => Date.now() < mutedUntil;
+  S.mute = min => { mutedUntil = Date.now() + min * 60e3; S.stop(); muteListeners.forEach(fn => fn(true)); };
+  S.unmute = () => { mutedUntil = 0; muteListeners.forEach(fn => fn(false)); };
+  S.mutedMinutes = () => Math.max(0, Math.ceil((mutedUntil - Date.now()) / 60e3));
 
   // ---------- Recorded audio packs ----------
   const packs = {};      // id -> { type, clips: { key: base64 } }
@@ -21,8 +32,8 @@
   };
   S.onPack = fn => packListeners.push(fn);
   S.packReady = id => !!packs[id];
-  S.hasClip = (text, id) => { const p = packs[id || S.voiceMode()]; return !!p && !!p.clips[A.U.audioKey(text)]; };
   S.packLoading = id => !!loading[id] && !packs[id];
+  S.hasClip = (text, id) => { const p = packs[id || S.voiceMode()]; return !!p && !!p.clips[A.U.audioKey(text)]; };
 
   function viaScript(src) {
     return new Promise((resolve, reject) => {
@@ -55,6 +66,15 @@
     const v = settings().voice;
     return v === 'tts' || S.mainVoices().some(m => m.id === v) ? v : S.mainVoices()[0].id;
   };
+  // Core pack first; the rest arrives in the background
+  S.preload = function () {
+    const mode = S.voiceMode();
+    const v = mode === 'tts' ? S.mainVoices()[0].id : mode;
+    S.loadPack(v);
+    S.loadPack('shared');
+    setTimeout(() => { S.loadPack(v + '-more'); S.loadPack('shared-more'); }, 2000);
+    setTimeout(() => S.loadPack(v + '-slow'), 6000);
+  };
 
   function clipUrl(packId, key) {
     const p = packs[packId];
@@ -68,14 +88,27 @@
     }
     return urls[id];
   }
+  function mainOrder() {
+    const mode = S.voiceMode();
+    const ids = [mode].concat(S.mainVoices().map(v => v.id).filter(id => id !== mode));
+    return [].concat(...ids.map(id => [id, id + '-more']));
+  }
   // Recorded clip for a text: the chosen voice first, then the other recorded voice
   function findClip(text, opt) {
-    if (opt.clip) { const u = clipUrl('shared', opt.clip); if (u) return u; }
+    if (opt.clip) for (const id of ['shared', 'shared-more']) { const u = clipUrl(id, opt.clip); if (u) return { url: u }; }
     const key = A.U.audioKey(text);
-    const mode = S.voiceMode();
-    const order = [mode].concat(S.mainVoices().map(v => v.id).filter(id => id !== mode));
-    for (const id of order) { const u = clipUrl(id, key); if (u) return u; }
+    if (opt.slow) {
+      const u = clipUrl(S.voiceMode() + '-slow', key);
+      if (u) return { url: u, native: true };
+      S.loadPack(S.voiceMode() + '-slow');
+    }
+    for (const id of mainOrder()) { const u = clipUrl(id, key); if (u) return { url: u }; }
     return null;
+  }
+  function relevantLoading(opt) {
+    const mode = S.voiceMode();
+    const ids = [mode, mode + '-more'].concat(opt.clip ? ['shared', 'shared-more'] : []);
+    return ids.filter(id => S.packLoading(id)).map(id => loading[id]);
   }
 
   let cur = null;      // { audio, fin }
@@ -156,13 +189,14 @@
 
   // ---------- Public ----------
   S.speak = function (text, opt) {
-    if (!text) return Promise.resolve();
+    if (!text || S.muted()) return Promise.resolve();
     const my = ++seq;
     stopSound();
     return speakOne(text, opt || {}, my);
   };
   // Several clips one after another (letter names, pairs of words); stop() cancels the rest
   S.speakSeq = function (list, opt) {
+    if (S.muted()) return Promise.resolve();
     const my = ++seq;
     stopSound();
     return playSeq(list, opt || {}, my);
@@ -177,19 +211,21 @@
 
   async function speakOne(text, opt, my) {
     const base = settings().rate || 1;
-    const rate = Math.max(0.5, Math.min(1.6, base * (opt.slow ? 0.7 : 1) * (opt.rateMul || 1)));
+    const rate = slow => Math.max(0.5, Math.min(1.6, base * (slow ? 0.7 : 1) * (opt.rateMul || 1)));
     if (S.voiceMode() !== 'tts') {
-      const want = [S.voiceMode()].concat(opt.clip ? ['shared'] : []);
-      // a pack still downloading is worth a short wait: it sounds much better than the synthesizer
-      const pending = want.filter(id => S.packLoading(id)).map(id => loading[id]);
-      if (pending.length) await Promise.race([Promise.all(pending), new Promise(r => setTimeout(r, 2500))]);
-      if (my !== seq) return;
-      const url = findClip(text, opt);
-      if (url) return playUrl(url, rate);
+      let found = findClip(text, opt);
+      if (!found) {
+        // a pack still downloading is worth a short wait: it sounds much better than the synthesizer
+        const pending = relevantLoading(opt);
+        if (pending.length) await Promise.race([Promise.all(pending), new Promise(r => setTimeout(r, 2500))]);
+        if (my !== seq) return;
+        found = findClip(text, opt);
+      }
+      if (found) return playUrl(found.url, rate(opt.slow && !found.native));
       if (/^([A-Z]\.\s*){2,}$/.test(text.trim())) return playSeq(text.trim().split(/\s+/), opt, my);
     }
     if (my !== seq) return;
-    return tts(text, opt, rate);
+    return tts(text, opt, rate(opt.slow));
   }
 
   // High-variability listening: a different voice and a slightly different tempo each time
@@ -211,19 +247,57 @@
     return S.speak(text, Object.assign(opt, { voice: v || undefined }));
   };
 
+  // The learner's own recording
+  S.playRecording = function (url) {
+    const my = ++seq;
+    stopSound();
+    return my === seq ? playUrl(url, 1) : Promise.resolve();
+  };
+
   function stopSound() {
     if (cur) { try { cur.audio.pause(); } catch (e) { /* ignore */ } cur.fin(); }
     try { if (S.ttsSupported && (synth.speaking || synth.pending)) synth.cancel(); } catch (e) { /* ignore */ }
   }
   S.stop = function () { seq++; stopSound(); };
 
-  // ---------- Recognition ----------
+  // ---------- Microphone: recognition and recording ----------
   const Rec = window.SpeechRecognition || window.webkitSpeechRecognition;
-  S.recSupported = !!Rec;
+  // Embedded pages (the claude.ai viewer) get no microphone at all
+  S.framed = (() => { try { return window.top !== window.self; } catch (e) { return true; } })();
+  S.recSupported = !!Rec && !S.framed;
   S.micBlocked = false;
+  S.recBlocked = S.framed;
   let pausedUntil = 0;
   S.pauseMic = min => { pausedUntil = Date.now() + min * 60e3; };
-  S.canListen = () => S.recSupported && !S.micBlocked && settings().mic && Date.now() > pausedUntil;
+  S.canListen = () => S.recSupported && !S.micBlocked && settings().mic && Date.now() > pausedUntil && !S.muted();
+  S.canRecord = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder) &&
+    settings().mic && !S.recBlocked && Date.now() > pausedUntil && !S.muted();
+
+  let recorder = null;
+  S.record = function (maxMs) {
+    return new Promise(resolve => {
+      navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+        let rec;
+        try { rec = new MediaRecorder(stream); } catch (e) { stream.getTracks().forEach(t => t.stop()); resolve({ error: 'recorder' }); return; }
+        const chunks = [];
+        recorder = rec;
+        const t = setTimeout(() => { try { rec.stop(); } catch (e) { /* ignore */ } }, maxMs || 6000);
+        rec.ondataavailable = e => { if (e.data && e.data.size) chunks.push(e.data); };
+        rec.onstop = () => {
+          clearTimeout(t);
+          stream.getTracks().forEach(tr => tr.stop());
+          recorder = null;
+          const blob = new Blob(chunks, { type: rec.mimeType || 'audio/webm' });
+          resolve(blob.size ? { url: URL.createObjectURL(blob) } : { error: 'empty' });
+        };
+        rec.start();
+      }).catch(e => {
+        if (e && (e.name === 'NotAllowedError' || e.name === 'SecurityError' || e.name === 'NotFoundError')) S.recBlocked = true;
+        resolve({ error: (e && e.name) || 'error' });
+      });
+    });
+  };
+  S.stopRecording = () => { if (recorder && recorder.state === 'recording') try { recorder.stop(); } catch (e) { /* ignore */ } };
 
   let active = null;
   S.listen = function () {

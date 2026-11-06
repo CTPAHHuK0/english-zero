@@ -9,8 +9,10 @@
     read: { name: 'Чтение', color: 'var(--read)' },
     talk: { name: 'Разговор', color: 'var(--talk)' },
     gram: { name: 'Грамматика', color: 'var(--gram)' },
-    story: { name: 'Истории', color: 'var(--story)' }
+    story: { name: 'Истории', color: 'var(--story)' },
+    dial: { name: 'Диалоги', color: 'var(--dial)' }
   };
+  const isStoryLine = line => line === 'story' || line === 'dial';
 
   function nameItem(letter) {
     return {
@@ -49,7 +51,7 @@
       // Content files describe lessons in u.lessons (explicit groups) or u.items (auto-split)
       const authored = u.authored || (u.authored = Array.isArray(u.lessons) ? u.lessons : (u.items ? chunk(u.items, u.size || 4) : []));
       u.lessons = [];
-      if (u.line === 'story') {
+      if (isStoryLine(u.line)) {
         u.lessons.push({ key: u.id + ':0', unit: u, idx: 0, title: D.stories[u.story].title, story: u.story, newIds: [], refIds: [] });
       } else {
         authored.forEach((def, li) => {
@@ -86,7 +88,8 @@
     const w = A.U.norm(word);
     if (!w) return '';
     if (C.lexicon[w]) return C.lexicon[w];
-    const stems = [w.replace(/'s$/, ''), w.replace(/s$/, ''), w.replace(/es$/, ''), w.replace(/ies$/, 'y')];
+    const stems = [w.replace(/'s$/, ''), w.replace(/s$/, ''), w.replace(/es$/, ''), w.replace(/ies$/, 'y'),
+      w.replace(/ed$/, ''), w.replace(/d$/, ''), w.replace(/ied$/, 'y'), w.replace(/ing$/, ''), w.replace(/ing$/, 'e'), w.replace(/er$/, '')];
     for (const s of stems) if (s && C.lexicon[s]) return C.lexicon[s];
     return '';
   };
@@ -95,7 +98,8 @@
   C.lessonDone = key => !!S().lessons[key];
   C.unitDoneCount = u => u.lessons.filter(l => C.lessonDone(l.key)).length;
   C.unitComplete = u => u.lessons.every(l => C.lessonDone(l.key));
-  C.unitUnlocked = u => S().settings.openAll || u.index === 0 || C.unitComplete(C.units[u.index - 1]);
+  // A unit stays open once any of its lessons is done (course updates may add lessons to earlier units)
+  C.unitUnlocked = u => S().settings.openAll || u.index === 0 || C.unitComplete(C.units[u.index - 1]) || C.unitDoneCount(u) > 0;
   C.lessonUnlocked = l => {
     if (!C.unitUnlocked(l.unit)) return false;
     if (S().settings.openAll) return true;

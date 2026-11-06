@@ -69,6 +69,9 @@
     { id: 's30', mark: '30', t: 'Месяц', d: 'Серия из 30 дней', test: s => s.stats.best >= 30 },
     { id: 'r10', mark: '×10', t: 'Повторение', d: '10 сессий повторения', test: s => s.stats.reviews >= 10 },
     { id: 'voice', mark: 'Mic', t: 'Голос', d: '10 раз сказали фразу вслух', test: s => s.stats.spoken >= 10 },
+    { id: 'dialog', mark: '⇄', t: 'Собеседник', d: 'Пройден первый диалог', test: s => (s.stats.dialogs || 0) >= 1 },
+    { id: 'ai', mark: 'AI', t: 'Разговорчивый', d: '20 сообщений в разговоре с ИИ', test: s => (s.stats.aiMessages || 0) >= 20 },
+    { id: 'past', mark: 'was', t: 'Прошлое', d: 'Пройдена зона «Рассказываю о прошлом»', test: () => A.Course.units.filter(u => u.zone === 4).every(A.Course.unitComplete) },
     { id: 'finish', mark: 'NY', t: 'Нью-Йорк', d: 'Пройден весь маршрут', test: () => A.Course.units.every(A.Course.unitComplete) }
   ];
 

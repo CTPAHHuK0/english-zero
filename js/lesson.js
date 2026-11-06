@@ -10,13 +10,17 @@
   const PRAISE = ['Верно!', 'Отлично!', 'Так держать!', 'Супер!', 'Правильно!', 'Здорово!'];
   let S = null;
   let el = {};
+  Sp.onMute(on => { if (el.mute) el.mute.hidden = !on; });
 
   L.active = () => !!S && !S.finished;
 
+  // learned: items the learner has actually been shown (grows as new items are introduced in this lesson);
+  // known: learned plus this lesson's items (used only as wrong options)
   function makeCtx(unitIndex, extra) {
-    const known = new Set(Object.keys(St.state.items).filter(id => C.items[id]));
+    const learned = new Set(Object.keys(St.state.items).filter(id => C.items[id]));
+    const known = new Set(learned);
     (extra || []).forEach(id => known.add(id));
-    return { known, knownIds: Array.from(known), unitIndex, lastType: null, noSpeak: false };
+    return { learned, known, knownIds: Array.from(known), unitIndex, lastType: null, noSpeak: false };
   }
 
   // Learned items, most forgotten first (due ones before the rest)
@@ -97,7 +101,15 @@
   }
 
   // ---------- public ----------
-  L.startLesson = function (lesson) {
+  L.startLesson = async function (lesson) {
+    // Listening-only lessons cannot run in "can't listen now" mode
+    const ids = lesson.newIds.concat(lesson.refIds);
+    const audioOnly = lesson.mode === 'spell_listen' || (ids.length && ids.every(id => X.audioOnly(C.items[id])));
+    if (Sp.muted() && (audioOnly || lesson.story)) {
+      const ok = await U.confirm({ title: 'Включить звук?', text: 'Этот урок нельзя пройти без звука.', ok: 'Включить звук', cancel: 'Позже' });
+      if (!ok) return;
+      Sp.unmute();
+    }
     if (lesson.story) { A.Story.start(lesson); return; }
     begin({ kind: 'lesson', lesson, queue: lessonQueue(lesson), unitIndex: lesson.unit.index, extraKnown: lesson.newIds.concat(lesson.refIds) });
   };
@@ -123,8 +135,12 @@
     el.cta = h('button', { class: 'btn primary block', type: 'button' }, 'Проверить');
     el.foot = h('div', { class: 'lesson-foot' }, el.fb, el.cta);
     const close = h('button', { class: 'icon-btn', type: 'button', 'aria-label': 'Выйти', html: U.icon('close'), onclick: onClose || L.askExit });
+    el.mute = h('button', {
+      class: 'mute-chip', type: 'button', hidden: !Sp.muted(), title: 'Включить звук',
+      onclick: () => { Sp.unmute(); U.toast('Звук снова включён'); }
+    }, '🔇 без звука');
     U.$('#main').replaceChildren(h('div', { class: 'lesson' },
-      h('div', { class: 'lesson-top' }, close, h('div', { class: 'progress', role: 'progressbar' }, el.progress), el.combo),
+      h('div', { class: 'lesson-top' }, close, h('div', { class: 'progress', role: 'progressbar' }, el.progress), el.mute, el.combo),
       el.body, el.foot));
     U.$('#main').scrollTop = 0;
     return el;
@@ -182,6 +198,7 @@
       el.cta.textContent = 'Дальше';
       el.cta.onclick = next;
       if (!S.introduced.includes(e.id)) S.introduced.push(e.id);
+      S.ctx.learned.add(e.id);
       setTimeout(() => { if (S && S.queue[S.pos] === e) card.play(); }, 350);
       return;
     }
@@ -244,7 +261,7 @@
         S.errRun++;
         U.sfx('bad');
         U.vibrate([30, 40, 30]);
-        showFb('bad', 'Правильный ответ:', ex);
+        showFb('bad', 'Правильный ответ:', ex, r);
         const say = (ex.fb && (ex.fb.say || ex.fb.en)) || ex.sayAfter;
         setTimeout(() => { if (S && S.ex === ex) { if (ex.afterWrong) ex.afterWrong(); else if (say) Sp.speak(say); } }, 450);
         if (e.t === 'ex') requeue(e);
@@ -255,13 +272,14 @@
     el.cta.onclick = next;
   }
 
-  function showFb(kind, title, ex) {
+  function showFb(kind, title, ex, r) {
     el.foot.className = 'lesson-foot ' + kind;
     const fb = ex && ex.fb;
     const body = h('div', { class: 'fb-body' });
     if (fb && kind === 'bad') {
       if (fb.en) body.append(h('div', { class: 'en' }, fb.en));
       if (fb.ru) body.append(h('div', {}, fb.ru));
+      if (r && r.why) body.append(h('div', { class: 'fb-why', html: r.why }));
       if (fb.note) body.append(h('div', { class: 'small', style: 'margin-top:6px', html: fb.note }));
     } else if (fb && kind === 'good' && fb.en && fb.ru) {
       body.append(h('span', { class: 'en', style: 'font-size:17px' }, fb.en), ' — ' + fb.ru);

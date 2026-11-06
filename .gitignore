@@ -3,3 +3,5 @@
 .audio-cache/
 # build output only used for the claude.ai preview
 dist/artifact.html
+# copy of audio/ made by tools/build.js for the single-file version
+dist/audio/

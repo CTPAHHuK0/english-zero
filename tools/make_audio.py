@@ -24,7 +24,7 @@ from kokoro_onnx import Kokoro
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Slightly slower than natural speech for a beginner; the app can change the tempo further
-SPEED = {'letter': 0.85, 'word': 0.9, 'token': 0.9, 'phrase': 0.95, 'sent': 0.95, 'line': 0.95}
+SPEED = {'letter': 0.85, 'word': 0.9, 'token': 0.9, 'phrase': 0.95, 'sent': 0.95, 'line': 0.95, 'slow': 0.65}
 
 
 def trim(x, sr):

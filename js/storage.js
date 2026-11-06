@@ -25,7 +25,7 @@
       items: {},             // item id -> FSRS card
       stats: {
         xp: 0, days: {}, streak: 0, best: 0, last: '', freezes: 0,
-        answered: 0, correct: 0, reviews: 0, spoken: 0, stories: 0, perfect: 0, seconds: 0
+        answered: 0, correct: 0, reviews: 0, spoken: 0, stories: 0, dialogs: 0, aiMessages: 0, perfect: 0, seconds: 0
       },
       badges: {}
     };

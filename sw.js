@@ -1,12 +1,14 @@
 'use strict';
 // Offline support: the app shell is cached on install; Google Fonts are cached on first use.
 // Audio packs (audio/*.js) are cached the first time the app loads them.
-const VERSION = 'english-zero-v2';
+const VERSION = 'english-zero-v3';
 const SHELL = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
   'js/util.js', 'js/storage.js', 'js/srs.js', 'js/speech.js',
-  'js/content/define.js', 'js/content/voices.js', 'js/content/letters.js', 'js/content/units-1.js', 'js/content/units-2.js', 'js/content/units-3.js', 'js/content/stories.js',
-  'js/course.js', 'js/progress.js', 'js/exercises.js', 'js/lesson.js', 'js/story.js', 'js/screens.js', 'js/app.js',
+  'js/content/define.js', 'js/content/voices.js', 'js/content/patterns.js', 'js/content/letters.js',
+  'js/content/units-1.js', 'js/content/units-2.js', 'js/content/units-3.js', 'js/content/units-4.js',
+  'js/content/stories.js', 'js/content/stories-2.js', 'js/vendor/qrcode.js',
+  'js/course.js', 'js/progress.js', 'js/exercises.js', 'js/lesson.js', 'js/story.js', 'js/transfer.js', 'js/ai.js', 'js/screens.js', 'js/app.js',
   'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/icon-maskable-512.png'
 ];
 

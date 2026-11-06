@@ -1,7 +1,8 @@
 'use strict';
 // Exercise builders. Each builder returns an object:
-//   { title, view(api) -> Node, check() -> {ok}, autoplay?, sayAfter?, fb?, auto? }
+//   { title, view(api) -> Node, check() -> {ok, why?}, autoplay?, sayAfter?, fb?, auto? }
 // api.ready(bool) enables the Check button; api.done(result) finishes exercises without it.
+// `why` explains a wrong answer (elaborated feedback), not just the right one.
 (function (A) {
   const U = A.U, h = U.h;
   const C = A.Course, Sp = A.Speech;
@@ -11,7 +12,8 @@
   const HOMO = [['see', 'sea'], ['be', 'bee'], ['to', 'two', 'too'], ['here', 'hear'], ['no', 'know'], ['right', 'write'],
     ['for', 'four'], ['one', 'won'], ['son', 'sun'], ['eight', 'ate'], ['meat', 'meet'], ['by', 'bye', 'buy'], ['i', 'eye'],
     ['tea', 'tee'], ['there', 'their'], ['our', 'hour'], ['red', 'read'], ['wait', 'weight'], ['mail', 'male'], ['road', 'rode'],
-    ['nose', 'knows'], ['rose', 'rows'], ['cell', 'sell'], ['ant', 'aunt'], ['cent', 'sent'], ['sum', 'some'], ['night', 'knight'], ['plane', 'plain']];
+    ['nose', 'knows'], ['rose', 'rows'], ['cell', 'sell'], ['ant', 'aunt'], ['cent', 'sent'], ['sum', 'some'], ['night', 'knight'], ['plane', 'plain'],
+    ['made', 'maid'], ['sale', 'sail'], ['week', 'weak'], ['new', 'knew'], ['dear', 'deer']];
   const homoOf = {};
   HOMO.forEach(g => g.forEach(w => { homoOf[w] = g; }));
   const isHomo = (a, b) => { const g = homoOf[String(a).toLowerCase()]; return !!g && g.includes(String(b).toLowerCase()); };
@@ -23,6 +25,8 @@
   const LETTER_CONF = { b: 'dpq', d: 'bpq', p: 'qbd', q: 'pgd', n: 'umh', u: 'nvy', m: 'nw', w: 'mv', i: 'ljt', l: 'ijt', j: 'ig', g: 'qj', h: 'nk', v: 'uwy', y: 'vj', e: 'ca', a: 'eo', o: 'ac', c: 'eo', r: 'nt', t: 'lf', f: 'tl', s: 'zc', z: 'sx', x: 'zk', k: 'xh' };
   const NAME_CONF = { A: 'ERHI', B: 'VDPE', C: 'SZKE', D: 'BTEG', E: 'IAYG', F: 'SVHX', G: 'JZDE', H: 'AKEX', I: 'EYAR', J: 'GAKY', K: 'QCAJ', L: 'MNEF', M: 'NLE', N: 'MLE', O: 'UAQ', P: 'BTDE', Q: 'KUCW', R: 'AEIO', S: 'FXCZ', T: 'DPEB', U: 'YWQO', V: 'BZWE', W: 'VYUD', X: 'SKZE', Y: 'WIUE', Z: 'CGSE' };
   const GRAPHEMES = ['igh', 'sh', 'ch', 'th', 'ck', 'ng', 'ee', 'ea', 'oo', 'ai', 'ay', 'oa', 'ow', 'ou', 'ar', 'or', 'er', 'ir', 'ur', 'qu'];
+  // Exercise types that need sound or a microphone (skipped in "can't listen now" mode)
+  const AUDIO_TYPES = new Set(['listen_pick_pic', 'listen_pick_word', 'listen_pick_meaning', 'listen_build', 'minimal', 'name_listen', 'spell_listen', 'letter_listen', 'speak', 'shadow']);
 
   X.nameSay = ch => ch.toUpperCase() + '.';
 
@@ -46,25 +50,99 @@
   function audioRow(text, opt) { return h('div', { class: 'audio-row' }, auBtn(text, opt), slowBtn(text, opt)); }
   X.auBtn = auBtn;
   X.slowBtn = slowBtn;
+  X.audioRow = audioRow;
   function picNode(pic) { return h('div', { class: 'pic' + (U.isTextPic(pic) ? ' txt' : '') }, pic); }
   X.picNode = picNode;
   const sizeCls = t => t.length > 22 ? ' sm' : t.length > 9 ? ' md' : '';
   function wordNode(t) { return h('div', { class: 'bigword en' + sizeCls(t) }, t); }
   const fbOf = it => ({ en: it.en, ru: it.ru });
   const family = k => (k === 'phrase' || k === 'sent') ? ['phrase', 'sent'] : [k];
+  const esc = U.escape;
 
   const tokenize = U.tokenize;
 
+  // ---------- explanations for wrong answers ----------
+  let graphHints = null;
+  function graphHint(g) {
+    if (!graphHints) {
+      graphHints = {};
+      Object.values(A.DATA.letters).forEach(L => {
+        if (L.id === 'L_y_end' || L.id === 'L_ow2' || L.id === 'L_er') return;
+        const text = L.hint.replace(/<[^>]+>/g, '');
+        graphHints[L.ch] = text.split(/(?<=[.!])\s/)[0];
+      });
+    }
+    return graphHints[g] || '';
+  }
+  // Where two spellings differ, and what the right letters sound like
+  function diffHint(right, picked) {
+    const a = right.toLowerCase(), b = picked.toLowerCase();
+    let i = 0;
+    while (i < a.length && i < b.length && a[i] === b[i]) i++;
+    let j = 0;
+    while (j < a.length - i && j < b.length - i && a[a.length - 1 - j] === b[b.length - 1 - j]) j++;
+    const pa = a.slice(i, a.length - j), pb = b.slice(i, b.length - j);
+    if (!pa && !pb) return '';
+    const hint = graphHint(pa);
+    return 'Разница: <b class="en">' + esc(pa || '—') + '</b> вместо <span class="en">' + esc(pb || '—') + '</span>.' + (hint ? ' «' + esc(pa) + '»: ' + esc(hint) : '');
+  }
+  function wordWhy(right, picked) {
+    const it = C.items['w:' + picked.toLowerCase()];
+    const meaning = it ? '«' + esc(picked) + '» — ' + esc(it.ru) + '. ' : 'Слова «' + esc(picked) + '» нет. ';
+    return meaning + diffHint(right, picked);
+  }
+  const itemWhy = x => '«<span class="en">' + esc(x.en) + '</span>» — ' + esc(x.ru) + '.';
+  const ruWhy = x => '«' + esc(x.ru) + '» по-английски — «<span class="en">' + esc(x.en) + '</span>».';
+  function whyWord(w) {
+    const W = A.DATA.why || {};
+    return W[String(w).toLowerCase()] || '';
+  }
+  // Why the chosen word does not fit the gap, and why the right one does
+  function gapWhy(picked, right) {
+    const p = picked.toLowerCase(), r = right.toLowerCase();
+    let a = whyWord(p), b = whyWord(r);
+    const related = p.slice(0, 3) === r.slice(0, 3);
+    if (!a && related) {
+      if (/ing$/.test(p)) a = '<b>' + esc(p) + '</b> — форма «прямо сейчас» (I am ' + esc(p) + '). Здесь она не подходит.';
+      else if (p.indexOf('more ') === 0) a = 'С короткими словами more не нужен: говорят <b>' + esc(r) + '</b>.';
+      else if (/er$/.test(r) && !/er$/.test(p)) a = '<b>' + esc(p) + '</b> — без сравнения. Сравнивая, говорят <b>' + esc(r) + '</b> than.';
+      else if (/ed$/.test(p) && !/ed$/.test(r)) a = '<b>' + esc(p) + '</b> — прошедшее время. Здесь нужна другая форма.';
+      else if (/s$/.test(p) && !/s$/.test(r)) a = '<b>' + esc(p) + '</b> — форма с -s: только с he, she, it и одним человеком.';
+      else if (/s$/.test(r) && !/s$/.test(p)) a = '<b>' + esc(p) + '</b> — без -s: так говорят с I, you, we, they.';
+      else if (/ed$/.test(r)) a = '<b>' + esc(p) + '</b> — настоящее время, а речь о прошлом (yesterday): нужно -ed.';
+    }
+    if (!b && related) {
+      if (/s$/.test(r) && !/s$/.test(p)) b = 'С he, she, it и одним человеком глагол получает <b>-s</b>: ' + esc(r) + '.';
+      else if (/ed$/.test(r)) b = 'О прошлом: <b>' + esc(r) + '</b>.';
+      else if (/s$/.test(p)) b = 'С I, you, we, they — без -s: <b>' + esc(r) + '</b>.';
+    }
+    if (!a && !b) return '';
+    return (a ? 'Вы выбрали «<span class="en">' + esc(picked) + '</span>»: ' + a.replace(/^<b>[^<]+<\/b> — /, '') + ' ' : '') + (b ? 'Здесь нужно: ' + b : '');
+  }
+  X.gapWhy = gapWhy;
+
   // ---------- distractors ----------
+  // Candidates for wrong options: items the learner has already met first, then this lesson's items, then the rest
   function pool(item, ctx, test) {
     const out = [], seen = new Set([item.id]);
     const push = it => { if (it && !seen.has(it.id) && test(it)) { seen.add(it.id); out.push(it); } };
+    if (ctx.learned) U.shuffle(Array.from(ctx.learned)).forEach(id => push(C.items[id]));
     U.shuffle(ctx.knownIds).forEach(id => push(C.items[id]));
     const maxU = ctx.unitIndex == null ? 999 : ctx.unitIndex + 1;
     const rest = U.shuffle(C.list);
     rest.forEach(it => { const ui = C.unitIndex[it.unit]; if (ui != null && ui <= maxU) push(it); });
     rest.forEach(push);
     return out;
+  }
+  // Two items with the same translation (home / house — «дом») must not both be offered: either answer would be right
+  function meanings(ru) {
+    return String(ru || '').toLowerCase().replace(/ё/g, 'е').split(/[,;/]/)
+      .map(p => p.replace(/[^а-яa-z ]+/g, ' ').replace(/\s+/g, ' ').trim()).filter(Boolean);
+  }
+  function sameMeaning(a, b) {
+    const A1 = meanings(a.ru), B1 = meanings(b.ru);
+    return A1.some(x => B1.some(y => x === y ||
+      (!x.includes(' ') && y.split(' ')[0] === x) || (!y.includes(' ') && x.split(' ')[0] === y)));
   }
   function distract(item, ctx, n, test, key) {
     const used = new Set([key(item)]);
@@ -73,6 +151,8 @@
       const k = key(it);
       if (!k || used.has(k)) continue;
       if (item.en && it.en && isHomo(item.en, it.en)) continue;
+      if (item.ru && it.ru && sameMeaning(item, it)) continue;
+      if (res.some(r => r.ru && it.ru && sameMeaning(r, it))) continue;
       used.add(k);
       res.push(it);
       if (res.length >= n) break;
@@ -138,10 +218,19 @@
   }
 
   // ---------- generic exercise shapes ----------
+  function muteBtn(api) {
+    return h('button', {
+      class: 'btn ghost sm', type: 'button',
+      onclick: () => { Sp.mute(15); api.done({ skip: true, msg: 'Хорошо: 15 минут без звука. Задания на слух пока пропускаем.' }); }
+    }, 'Не могу слушать сейчас');
+  }
+
   function choice(o) {
     let sel = -1, btns = [];
     return {
       title: o.title, autoplay: o.autoplay, autoplayOpt: o.autoplayOpt, fb: o.fb, sayAfter: o.sayAfter,
+      // the right option and option texts (used by the automated course check)
+      answer: o.correct, labels: o.options.map(op => op.text || (typeof op.label === 'string' ? op.label : '')),
       view(api) {
         btns = o.options.map((op, i) => h('button', {
           class: 'opt ' + op.cls, type: 'button',
@@ -153,7 +242,7 @@
             api.ready(true);
           }
         }, op.label));
-        return h('div', { class: 'ex' }, o.prompt, h('div', { class: 'opts' + (o.list ? ' list' : '') }, btns));
+        return h('div', { class: 'ex' }, o.prompt, h('div', { class: 'opts' + (o.list ? ' list' : '') }, btns), o.listen ? muteBtn(api) : null);
       },
       check() {
         const ok = sel === o.correct;
@@ -163,7 +252,7 @@
           b.classList.add(j === o.correct ? 'ok' : j === sel ? 'bad' : 'dim');
         });
         if (o.onCheck) o.onCheck(ok);
-        return { ok };
+        return { ok, why: ok ? '' : (o.options[sel] && o.options[sel].why) || '' };
       }
     };
   }
@@ -190,12 +279,12 @@
       api.ready(answer.length > 0);
     }
     return {
-      title: o.title, autoplay: o.autoplay, fb: o.fb, sayAfter: o.sayAfter,
+      title: o.title, autoplay: o.autoplay, fb: o.fb, sayAfter: o.sayAfter, answer: o.target, tokens: o.tokens,
       view(a) {
         api = a;
         ansRow = h('div', { class: 'answer-row' + (o.letters ? ' letters' : '') });
         poolRow = h('div', { class: 'tiles' });
-        const n = h('div', { class: 'ex' }, o.prompt, ansRow, poolRow);
+        const n = h('div', { class: 'ex' }, o.prompt, ansRow, poolRow, o.listen ? muteBtn(api) : null);
         redraw();
         return n;
       },
@@ -204,7 +293,16 @@
         const ok = U.normLoose(got) === U.normLoose(o.target);
         ansRow.classList.add(ok ? 'ok' : 'bad');
         U.$$('button', ansRow).concat(U.$$('button', poolRow)).forEach(b => { b.disabled = true; });
-        return { ok };
+        let why = '';
+        if (!ok) {
+          why = 'Ваш ответ: «<span class="en">' + esc(got) + '</span>».';
+          if (o.letters) why += ' ' + diffHint(o.target, got);
+          else if (o.gap) {
+            const wrong = answer.map(p => p.t).find(t => o.alts && o.alts.some(a => a.toLowerCase() === t.toLowerCase()));
+            if (wrong) why += ' ' + gapWhy(wrong, o.gap);
+          }
+        }
+        return { ok, why };
       }
     };
   }
@@ -218,8 +316,9 @@
     if (ds.length < 2) return null;
     const all = U.shuffle([it, ...ds]);
     return choice({
-      title: 'Послушайте и выберите картинку', prompt: h('div', { class: 'prompt' }, audioRow(it.en)), autoplay: it.en,
-      options: all.map(x => ({ cls: 'pic-opt' + (U.isTextPic(x.pic) ? ' txt' : ''), label: x.pic })), correct: all.indexOf(it), fb: fbOf(it)
+      title: 'Послушайте и выберите картинку', prompt: h('div', { class: 'prompt' }, audioRow(it.en)), autoplay: it.en, listen: true,
+      options: all.map(x => ({ cls: 'pic-opt' + (U.isTextPic(x.pic) ? ' txt' : ''), label: x.pic, why: 'Это «<span class="en">' + esc(x.en) + '</span>» — ' + esc(x.ru) + '.' })),
+      correct: all.indexOf(it), fb: fbOf(it)
     });
   };
 
@@ -230,7 +329,8 @@
     const all = U.shuffle([it, ...ds]);
     return choice({
       title: 'Прочитайте и выберите картинку', prompt: h('div', { class: 'prompt' }, wordNode(it.en)), sayAfter: it.en,
-      options: all.map(x => ({ cls: 'pic-opt' + (U.isTextPic(x.pic) ? ' txt' : ''), label: x.pic })), correct: all.indexOf(it), fb: fbOf(it)
+      options: all.map(x => ({ cls: 'pic-opt' + (U.isTextPic(x.pic) ? ' txt' : ''), label: x.pic, why: 'Эта картинка — «<span class="en">' + esc(x.en) + '</span>» (' + esc(x.ru) + '). ' + diffHint(it.en, x.en) })),
+      correct: all.indexOf(it), fb: fbOf(it)
     });
   };
 
@@ -239,8 +339,8 @@
     if (cands.length < 2) return null;
     const all = U.shuffle([it.en, ...cands]);
     return choice({
-      title: 'Какое слово вы услышали?', prompt: h('div', { class: 'prompt' }, audioRow(it.en)), autoplay: it.en,
-      options: all.map(w => ({ cls: 'word-opt en', label: w })), correct: all.indexOf(it.en), fb: fbOf(it)
+      title: 'Какое слово вы услышали?', prompt: h('div', { class: 'prompt' }, audioRow(it.en)), autoplay: it.en, listen: true,
+      options: all.map(w => ({ cls: 'word-opt en', label: w, why: wordWhy(it.en, w) })), correct: all.indexOf(it.en), fb: fbOf(it)
     });
   };
 
@@ -251,19 +351,19 @@
     const all = U.shuffle([it, ...ds]);
     return choice({
       title: 'Как это по-английски?', prompt: h('div', { class: 'prompt' }, picNode(it.pic), h('div', { class: 'ru-prompt' }, it.ru)), sayAfter: it.en,
-      options: all.map(x => ({ cls: 'word-opt en', label: x.en })), correct: all.indexOf(it), fb: fbOf(it)
+      options: all.map(x => ({ cls: 'word-opt en', label: x.en, why: itemWhy(x) })), correct: all.indexOf(it), fb: fbOf(it)
     });
   };
 
   B.read_pick_meaning = (it, ctx) => {
-    if (!family(it.kind).some(k => ['word', 'phrase', 'sent'].includes(k))) return null;
+    if (!['word', 'phrase', 'sent'].includes(it.kind)) return null;
     const ds = distract(it, ctx, 3, x => family(it.kind).includes(x.kind), x => x.ru);
     if (ds.length < 2) return null;
     const all = U.shuffle([it, ...ds]);
     return choice({
       title: 'Что это значит?', list: true,
       prompt: h('div', { class: 'prompt' }, wordNode(it.en), auBtn(it.en, { cls: 'xs' })),
-      sayAfter: it.en, options: all.map(x => ({ cls: 'ru-opt', label: x.ru })), correct: all.indexOf(it), fb: fbOf(it)
+      sayAfter: it.en, options: all.map(x => ({ cls: 'ru-opt', label: x.ru, why: ruWhy(x) })), correct: all.indexOf(it), fb: fbOf(it)
     });
   };
 
@@ -272,8 +372,8 @@
     if (ds.length < 2) return null;
     const all = U.shuffle([it, ...ds]);
     return choice({
-      title: 'Послушайте. Что это значит?', list: true, prompt: h('div', { class: 'prompt' }, audioRow(it.en)), autoplay: it.en,
-      options: all.map(x => ({ cls: 'ru-opt', label: x.ru })), correct: all.indexOf(it), fb: fbOf(it)
+      title: 'Послушайте. Что это значит?', list: true, prompt: h('div', { class: 'prompt' }, audioRow(it.en)), autoplay: it.en, listen: true,
+      options: all.map(x => ({ cls: 'ru-opt', label: x.ru, why: ruWhy(x) })), correct: all.indexOf(it), fb: fbOf(it)
     });
   };
 
@@ -285,7 +385,7 @@
     return choice({
       title: 'Как сказать по-английски?', list: long,
       prompt: h('div', { class: 'prompt' }, it.pic ? picNode(it.pic) : null, h('div', { class: 'ru-prompt' }, it.ru)), sayAfter: it.en,
-      options: all.map(x => ({ cls: 'word-opt en', label: x.en })), correct: all.indexOf(it), fb: fbOf(it)
+      options: all.map(x => ({ cls: 'word-opt en', label: x.en, why: itemWhy(x) })), correct: all.indexOf(it), fb: fbOf(it)
     });
   };
 
@@ -303,8 +403,10 @@
   B.build = (it, ctx) => {
     const toks = tokenize(it.en);
     if (toks.length < 2) return null;
+    const extra = it.gap && it.alts.length && !/\s/.test(it.alts[0]) && !toks.some(t => t.toLowerCase() === it.alts[0].toLowerCase())
+      ? [it.alts[0]].concat(extraWords(it, ctx, toks, 1)) : extraWords(it, ctx, toks, toks.length > 5 ? 1 : 2);
     return tiles({
-      title: 'Переведите на английский', tokens: toks, extra: extraWords(it, ctx, toks, toks.length > 5 ? 1 : 2), target: toks.join(' '),
+      title: 'Переведите на английский', tokens: toks, extra, target: toks.join(' '), gap: it.gap, alts: it.alts,
       sayAfter: it.en, fb: fbOf(it),
       prompt: h('div', { class: 'prompt' }, h('div', { class: 'ru-prompt' }, it.ru))
     });
@@ -315,7 +417,7 @@
     if (toks.length < 2) return null;
     return tiles({
       title: 'Соберите то, что услышали', tokens: toks, extra: extraWords(it, ctx, toks, toks.length > 5 ? 1 : 2), target: toks.join(' '),
-      autoplay: it.en, fb: fbOf(it), prompt: h('div', { class: 'prompt' }, audioRow(it.en))
+      gap: it.gap, alts: it.alts, autoplay: it.en, fb: fbOf(it), listen: true, prompt: h('div', { class: 'prompt' }, audioRow(it.en))
     });
   };
 
@@ -327,7 +429,7 @@
     return choice({
       title: 'Вставьте пропущенное слово', sayAfter: it.en, fb: fbOf(it),
       prompt: h('div', { class: 'prompt' }, h('div', { class: 'gap-sent en' }, before, blank, after), h('div', { class: 'ru-hint' }, it.ru)),
-      options: opts.map(o => ({ cls: 'word-opt en', label: o })), correct: opts.indexOf(it.gap),
+      options: opts.map(o => ({ cls: 'word-opt en', label: o, why: gapWhy(o, it.gap) })), correct: opts.indexOf(it.gap),
       onSelect: i => { blank.textContent = opts[i]; },
       onCheck: ok => { blank.textContent = it.gap; blank.classList.add(ok ? 'filled-ok' : 'filled-bad'); }
     });
@@ -337,14 +439,14 @@
     const target = Math.random() < 0.5 ? it.a : it.b;
     const opts = [it.a, it.b];
     const ex = choice({
-      title: 'Какое слово прозвучало?',
+      title: 'Какое слово прозвучало?', listen: true,
       prompt: h('div', { class: 'prompt' }, audioRow(target.en, { varied: true }), h('p', { class: 'muted small' }, 'Голоса меняются — так слух учится лучше.')),
-      options: opts.map(o => ({ cls: 'word-opt en', label: [h('span', { class: 'pic', style: 'display:block;font-size:40px;margin-bottom:4px' }, o.pic), o.en] })),
+      options: opts.map(o => ({ cls: 'word-opt en', label: [h('span', { class: 'pic', style: 'display:block;font-size:40px;margin-bottom:4px' }, o.pic), o.en], text: o.en, why: '«<span class="en">' + esc(o.en) + '</span>» — ' + esc(o.ru) + ', а прозвучало «<span class="en">' + esc(target.en) + '</span>».' })),
       correct: opts.indexOf(target), fb: { en: target.en, ru: target.ru, note: it.note }
     });
     ex.autoplay = target.en;
     ex.autoplayOpt = { varied: true };
-    ex.afterWrong = () => Sp.speak(it.a.en, { slow: true }).then(() => Sp.speak(it.b.en, { slow: true }));
+    ex.afterWrong = () => Sp.speakSeq([it.a.en, it.b.en], { slow: true });
     return ex;
   };
 
@@ -399,11 +501,70 @@
     };
   };
 
+  // Shadowing: record yourself, then hear the model and your own voice one after another
+  B.shadow = (it, ctx) => {
+    if (!Sp.canRecord() || ctx.noRecord) return null;
+    const seconds = Math.min(8, 2.5 + it.en.split(/\s+/).length * 0.6);
+    return {
+      title: 'Послушайте и повторите', auto: true, autoplay: it.en,
+      view(a) {
+        let finished = false, url = null;
+        const done = r => { if (finished) return; finished = true; a.done(r); };
+        const status = h('div', { class: 'heard' }, 'Послушайте образец, потом нажмите на микрофон и повторите.');
+        const mic = h('button', { class: 'mic', type: 'button', 'aria-label': 'Записать', html: U.icon('mic') });
+        const compare = h('button', { class: 'btn sm', type: 'button', hidden: true }, 'Сравнить ещё раз');
+        const verdict = h('div', { class: 'row', hidden: true, style: 'justify-content:center;flex-wrap:wrap' },
+          h('button', { class: 'btn good sm', type: 'button', onclick: () => done({ ok: true, spoken: true }) }, 'Похоже'),
+          h('button', { class: 'btn sm', type: 'button', onclick: () => { verdict.hidden = true; status.textContent = 'Попробуйте ещё раз: нажмите на микрофон.'; } }, 'Ещё раз'),
+          h('button', { class: 'btn ghost sm', type: 'button', onclick: () => done({ skip: true, msg: 'Повторим это позже.' }) }, 'Дальше'));
+        const playBoth = async () => {
+          status.textContent = 'Образец…';
+          await Sp.speak(it.en);
+          if (finished || !url) return;
+          await new Promise(r => setTimeout(r, 350));
+          status.textContent = 'Вы…';
+          await Sp.playRecording(url);
+          if (!finished) status.textContent = 'Похоже на образец? Обратите внимание на звуки и ударение.';
+        };
+        compare.onclick = playBoth;
+        mic.onclick = async () => {
+          if (finished) return;
+          if (mic.classList.contains('listening')) { Sp.stopRecording(); return; }
+          Sp.stop();
+          mic.classList.add('listening');
+          status.textContent = 'Говорите… (нажмите ещё раз, чтобы закончить)';
+          const r = await Sp.record(seconds * 1000);
+          mic.classList.remove('listening');
+          if (r.error) {
+            if (Sp.recBlocked) {
+              ctx.noRecord = true;
+              status.textContent = 'Нет доступа к микрофону — это задание пропускаем.';
+              setTimeout(() => done({ skip: true }), 1500);
+            } else status.textContent = 'Не получилось записать. Попробуйте ещё раз.';
+            return;
+          }
+          url = r.url;
+          compare.hidden = false;
+          verdict.hidden = false;
+          playBoth();
+        };
+        const skip = h('button', {
+          class: 'btn ghost sm', type: 'button',
+          onclick: () => { Sp.stopRecording(); Sp.pauseMic(15); done({ skip: true, msg: 'Хорошо, 15 минут без микрофона.' }); }
+        }, 'Не могу говорить сейчас');
+        return h('div', { class: 'ex' },
+          h('div', { class: 'prompt' }, wordNode(it.en), h('div', { class: 'ru-hint' }, it.ru), audioRow(it.en)),
+          h('div', { class: 'mic-wrap' }, mic, status, compare, verdict), skip);
+      }
+    };
+  };
+
   // ----- letters -----
+  // Another word with the same sound, but only one the learner has already been shown
   function altWord(L, ctx) {
-    if (!L.re || Math.random() < 0.5) return null;
+    if (!L.re || !ctx.learned || Math.random() < 0.5) return null;
     const re = new RegExp(L.re);
-    const ws = ctx.knownIds.map(id => C.items[id]).filter(x => x && x.kind === 'word' && x.read && re.test(x.en.toLowerCase()));
+    const ws = Array.from(ctx.learned).map(id => C.items[id]).filter(x => x && x.kind === 'word' && x.read && re.test(x.en.toLowerCase()));
     return ws.length ? U.pick(ws) : null;
   }
 
@@ -415,7 +576,8 @@
     return choice({
       title, prompt: h('div', { class: 'prompt' }, h('div', { class: 'bigletter en', style: L.ch.length > 3 ? 'font-size:56px' : '' }, L.ch),
         h('p', { class: 'muted small' }, 'Нажимайте на картинки, чтобы услышать слово')),
-      options: all.map(x => ({ cls: 'pic-opt', label: x.pic, say: x.key })), correct: all.indexOf(L), fb: { en: L.key, ru: L.keyRu }, sayAfter: L.key
+      options: all.map(x => ({ cls: 'pic-opt', label: x.pic, say: x.key, why: 'Это «<span class="en">' + esc(x.key) + '</span>» (' + esc(x.keyRu) + ') — здесь звук «' + esc(x.ch) + '».' })),
+      correct: all.indexOf(L), fb: { en: L.key, ru: L.keyRu }, sayAfter: L.key
     });
   };
 
@@ -427,9 +589,9 @@
     const all = U.shuffle([L, ...ds]);
     const title = L.pos === 'start' ? 'С чего начинается это слово?' : 'Какие буквы дают звук в этом слове?';
     return choice({
-      title, prompt: h('div', { class: 'prompt' }, audioRow(word)), autoplay: word,
-      options: all.map(x => ({ cls: (x.ch.length > 3 ? 'word-opt' : 'letter-opt') + ' en', label: x.ch })), correct: all.indexOf(L),
-      fb: { en: word, ru: alt ? alt.ru : L.keyRu }
+      title, prompt: h('div', { class: 'prompt' }, audioRow(word)), autoplay: word, listen: true,
+      options: all.map(x => ({ cls: (x.ch.length > 3 ? 'word-opt' : 'letter-opt') + ' en', label: x.ch, why: '«' + esc(x.ch) + '» звучит как в слове «<span class="en">' + esc(x.key) + '</span>».' })),
+      correct: all.indexOf(L), fb: { en: word, ru: alt ? alt.ru : L.keyRu }
     });
   };
 
@@ -441,7 +603,8 @@
     const all = U.shuffle([L.ch, ...others]);
     return choice({
       title: 'Найдите эту же букву, но маленькую', prompt: h('div', { class: 'prompt' }, h('div', { class: 'bigletter en' }, L.uc)),
-      options: all.map(c => ({ cls: 'letter-opt en', label: c })), correct: all.indexOf(L.ch), fb: { en: L.uc + ' ' + L.ch, ru: '', say: X.nameSay(L.ch) }, sayAfter: X.nameSay(L.ch)
+      options: all.map(c => ({ cls: 'letter-opt en', label: c, why: '«' + c + '» — это маленькая ' + c.toUpperCase() + '.' })),
+      correct: all.indexOf(L.ch), fb: { en: L.uc + ' ' + L.ch, ru: '', say: X.nameSay(L.ch) }, sayAfter: X.nameSay(L.ch)
     });
   };
 
@@ -465,7 +628,7 @@
     const all = U.shuffle([N.uc, ...others]);
     const say = X.nameSay(N.ch);
     return choice({
-      title: 'Какую букву назвали?', prompt: h('div', { class: 'prompt' }, audioRow(say)), autoplay: say,
+      title: 'Какую букву назвали?', prompt: h('div', { class: 'prompt' }, audioRow(say)), autoplay: say, listen: true,
       options: all.map(c => ({ cls: 'letter-opt en', label: c })), correct: all.indexOf(N.uc), fb: { en: N.uc + ' ' + N.ch, ru: '', say }
     });
   };
@@ -478,14 +641,15 @@
     if (cands.length < 2) return null;
     const all = U.shuffle([it.en, ...cands]);
     return choice({
-      title: 'Слово продиктовали по буквам. Какое?', prompt: h('div', { class: 'prompt' }, audioRow(say)), autoplay: say,
-      options: all.map(x => ({ cls: 'word-opt en', label: x })), correct: all.indexOf(it.en), fb: fbOf(it), sayAfter: it.en
+      title: 'Слово продиктовали по буквам. Какое?', prompt: h('div', { class: 'prompt' }, audioRow(say)), autoplay: say, listen: true,
+      options: all.map(x => ({ cls: 'word-opt en', label: x, why: wordWhy(it.en, x) })), correct: all.indexOf(it.en), fb: fbOf(it), sayAfter: it.en
     });
   };
 
   // Which exercise types fit an item at a given level (0 = just met, 2+ = should produce it)
   function menu(it, lvl, ctx) {
     const mic = Sp.canListen() && !ctx.noSpeak && Math.random() < 0.6;
+    const rec = Sp.canRecord() && !ctx.noRecord && Math.random() < 0.5;
     const k = it.kind;
     let m;
     if (k === 'letter') m = lvl <= 0 ? ['letter_pic', 'letter_listen'] : ['letter_listen', 'letter_pic', it.twin && 'twin_sound', it.single && 'letter_case'];
@@ -499,36 +663,45 @@
     } else if (k === 'sent') {
       if (lvl <= 0) m = ['read_pick_meaning', it.gap && 'gap'];
       else if (lvl === 1) m = [it.gap && 'gap', 'build', 'ru_pick_en'];
-      else m = ['listen_build', 'build', it.gap && 'gap', mic && 'speak'];
+      else m = ['listen_build', 'build', it.gap && 'gap', mic && 'speak', rec && 'shadow'];
     } else {
       if (lvl <= 0) m = ['listen_pick_meaning', 'read_pick_meaning'];
       else if (lvl === 1) m = ['ru_pick_en', 'build', 'listen_pick_meaning'];
-      else m = ['listen_build', 'build', mic && 'speak'];
+      else m = ['listen_build', 'build', mic && 'speak', rec && 'shadow'];
     }
     return m.filter(Boolean);
   }
 
   const FALLBACK = {
     letter: ['letter_pic', 'letter_listen', 'letter_case'], name: ['name_listen'], pair: ['minimal'],
-    word: ['read_pick_meaning', 'listen_pick_word', 'listen_pick_pic'], phrase: ['read_pick_meaning', 'listen_pick_meaning'], sent: ['read_pick_meaning', 'build']
+    word: ['read_pick_meaning', 'listen_pick_word', 'listen_pick_pic'], phrase: ['read_pick_meaning', 'listen_pick_meaning'], sent: ['read_pick_meaning', 'build', 'gap']
   };
 
+  // A grammar pattern becomes a fresh sentence each time it is practised
+  function variantOf(p) {
+    return Object.assign({ id: p.id, kind: 'sent', pic: '', pat: p }, p.gen());
+  }
+
   X.make = function (entry, ctx) {
-    const it = C.items[entry.id];
-    if (!it) return null;
-    const types = entry.mode ? [entry.mode] : U.shuffle(menu(it, entry.lvl, ctx));
+    const base = C.items[entry.id];
+    if (!base) return null;
+    const it = base.kind === 'pat' ? variantOf(base) : base;
+    let types = entry.mode ? [entry.mode] : U.shuffle(menu(it, entry.lvl, ctx));
     types.sort((a, b) => (a === ctx.lastType) - (b === ctx.lastType));
-    for (const t of types.concat(FALLBACK[it.kind] || [])) {
+    types = types.concat(FALLBACK[it.kind] || []);
+    if (Sp.muted()) types = types.filter(t => !AUDIO_TYPES.has(t));
+    for (const t of types) {
       const ex = B[t] && B[t](it, ctx);
       if (ex) {
         ex.type = t;
-        ex.item = it;
+        ex.item = base;
         ctx.lastType = t;
         return ex;
       }
     }
     return null;
   };
+  X.audioOnly = it => !it || it.kind === 'name' || it.kind === 'pair';
 
   // ---------- match pairs ----------
   X.makeMatch = function (ids) {
@@ -584,6 +757,7 @@
     const spans = Array.from(el.children);
     let i = 0;
     (function step() {
+      if (!el.isConnected) return; // the learner has moved on: no late sound on the next screen
       spans.forEach((s, j) => s.classList.toggle('on', j === i));
       i++;
       if (i <= spans.length) setTimeout(step, 280);
@@ -633,7 +807,20 @@
         h('div', { class: 'pair-cards' }, card(it.a), card(it.b)),
         h('div', { class: 'intro-hint', html: it.note }),
         h('p', { class: 'muted small' }, 'Нажимайте на карточки по очереди и слушайте разницу.'));
-      return { node, play: () => Sp.speak(it.a.en, { slow: true }).then(() => Sp.speak(it.b.en, { slow: true })) };
+      return { node, play: () => Sp.speakSeq([it.a.en, it.b.en], { slow: true }) };
+    }
+    if (it.kind === 'pat') {
+      const ex = U.sample(it.variants, 3);
+      const node = h('div', { class: 'intro' },
+        h('div', { class: 'label kind' }, 'Правило'),
+        h('div', { class: 'intro-en en md' }, it.en),
+        h('div', { class: 'intro-ru' }, it.ru),
+        h('div', { class: 'intro-hint', html: it.rule }),
+        h('div', { class: 'stack', style: 'align-self:stretch' }, ex.map(v => h('div', { class: 'key-row' },
+          h('div', { class: 'grow', style: 'text-align:left' }, h('div', { class: 'en', style: 'font-size:19px;font-weight:700' }, v.en), h('div', { class: 'muted small' }, v.ru)),
+          auBtn(v.en, { cls: 'xs' })))),
+        h('p', { class: 'muted small' }, 'Дальше правило будет каждый раз с новыми предложениями — так тренируется само правило, а не заученная фраза.'));
+      return { node, play: () => Sp.speak(ex[0].en) };
     }
     const isRead = it.kind === 'word' && it.read;
     const enEl = h('div', { class: 'intro-en en' + sizeCls(it.en) + (isRead ? ' blend' : ''), role: 'button', tabindex: '0' });
@@ -648,7 +835,8 @@
       h('div', { class: 'intro-ru' }, it.ru),
       audioRow(it.en),
       isRead ? h('p', { class: 'muted small' }, 'Посмотрите, как звуки букв сливаются в слово. Нажмите на слово, чтобы повторить.') : null,
-      it.kind === 'sent' && it.gap ? h('div', { class: 'intro-hint' }, 'Главное слово здесь — ', h('b', { class: 'en' }, it.gap)) : null);
+      it.kind === 'sent' && it.gap ? h('div', { class: 'intro-hint' }, 'Главное слово здесь — ', h('b', { class: 'en' }, it.gap),
+        whyWord(it.gap) ? h('span', { html: '. ' + whyWord(it.gap) }) : null) : null);
     return { node, play: say };
   };
 
