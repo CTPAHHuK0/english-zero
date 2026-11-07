@@ -9,6 +9,8 @@
   localStorage.clear();
   const sleep = ms => new Promise(r => setTimeout(r, ms));
   const C = A.Course, U = A.U, Sp = A.Speech;
+  // silent while the audit runs; restored at the end so the page can be used normally afterwards
+  const keepSpeech = { speak: Sp.speak, speakSeq: Sp.speakSeq, speakVaried: Sp.speakVaried };
   Sp.speak = () => Promise.resolve(); Sp.speakSeq = () => Promise.resolve(); Sp.speakVaried = () => Promise.resolve();
   A.Store.reset(); A.Store.state.onboarded = true; A.App.show('home');
   const issues = []; let exCount = 0, cur = null;
@@ -70,6 +72,8 @@
     }
   }
   A.Ex.make = origMake;
+  Object.assign(Sp, keepSpeech);
+  A.Store.reset(); A.App.show('home');
   console.log('Course audit: ' + C.units.length + ' units, ' + exCount + ' exercises, ' + issues.length + ' problems');
   issues.forEach(i => console.warn(i));
 })();
