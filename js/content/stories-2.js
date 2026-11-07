@@ -33,7 +33,7 @@
       ['Anna', 'This morning. I opened the window, and then I went to work.', 'Сегодня утром. Я открыла окно, а потом ушла на работу.'],
       ['Ben', 'Don’t worry. Let’s look in the park.', 'Не волнуйся. Давай поищем в парке.'],
       ['', 'They went to the park. They looked everywhere.', 'Они пошли в парк. Они искали везде.'],
-      ['Ben', 'Look! A big red cat in the tree!', 'Смотри! Большой рыжий кот на дереве!'],
+      ['Ben', 'Look! A big orange cat in the tree!', 'Смотри! Большой рыжий кот на дереве!'],
       ['Anna', 'Tom! Come down, please!', 'Том! Слезай, пожалуйста!'],
       ['', 'Tom came down and ate his dinner at home.', 'Том слез и поужинал дома.'],
       ['Anna', 'Thank you, Ben! You’re a good friend.', 'Спасибо, Бен! Ты хороший друг.']
@@ -90,7 +90,7 @@
       ['Mom', 'Hello? Anna! How are you, my dear?', 'Алло? Анна! Как ты, дорогая?'],
       ['Anna', 'Hi, Mom! I’m fine. I speak English every day now!', 'Привет, мама! Всё хорошо. Я теперь каждый день говорю по-английски!'],
       ['Mom', 'Great! What did you do last weekend?', 'Здорово! Что ты делала в прошлые выходные?'],
-      ['Anna', 'I went to Boston with Ben. We saw the sea!', 'Я ездила в Бостон с Беном. Мы видели море!'],
+      ['Anna', 'I went to Boston with Ben. We saw the ocean!', 'Я ездила в Бостон с Беном. Мы видели океан!'],
       ['Mom', 'Will you come home for the holidays?', 'Ты приедешь домой на праздники?'],
       ['Anna', 'Yes! I’ll buy a ticket next week.', 'Да! Я куплю билет на следующей неделе.'],
       ['Mom', 'Wonderful! I’ll cook your favorite food.', 'Чудесно! Я приготовлю твою любимую еду.'],
@@ -99,7 +99,7 @@
       ['Anna', 'I won’t, Mom. I love you!', 'Не забуду, мама. Люблю тебя!']
     ],
     questions: [
-      ['Что Анна видела в Бостоне?', 'Море', 'Горы', 'Снег'],
+      ['Что Анна видела в Бостоне?', 'Океан', 'Горы', 'Снег'],
       ['Что приготовит мама?', 'Любимую еду Анны', 'Торт для Бена', 'Ничего'],
       ['Что привезёт Анна?', 'Подарки', 'Кота Бена', 'Новую куртку']
     ]
@@ -238,7 +238,7 @@
       ['Anna', 'Thank you. Nice to meet you.', 'Спасибо. Приятно познакомиться.'],
       ['Manager', 'Tell me about yourself.', 'Расскажите о себе.'],
       ['Anna', 'I’m a programmer. I’m from Moscow, and now I live in New York.', 'Я программист. Я из Москвы, а сейчас живу в Нью-Йорке.'],
-      ['Manager', 'How many years did you work as a programmer?', 'Сколько лет вы работали программистом?'],
+      ['Manager', 'How many years did you work in Moscow?', 'Сколько лет вы работали в Москве?'],
       ['Anna', 'Five years. I worked for a big company in Moscow.', 'Пять лет. Я работала в большой компании в Москве.'],
       ['Manager', 'Why do you want this job?', 'Почему вы хотите эту работу?'],
       ['Anna', 'I like your team, and I want to learn new things.', 'Мне нравится ваша команда, и я хочу учиться новому.'],
@@ -322,7 +322,7 @@
     may: 'можно (вежливо)', bags: 'сумки, багаж', problem: 'проблема', stays: 'остаётся (stay)', seat: 'место, сиденье', boarding: 'посадка',
     gate: 'выход на посадку', "o'clock": 'часов (о времени)', "you're": 'ты, вы (you are)', "won't": 'не (will not)', "i'll": 'я (I will)',
     "we're": 'мы (we are)', "can't": 'не могу', "didn't": 'не (did not)', "don't": 'не (do not)', "i'm": 'я (I am)', "it's": 'это (it is)', "that's": 'это (that is)',
-    snow: 'снег', sea: 'море', tickets: 'билеты', apartment: 'квартира', train: 'поезд', interview: 'собеседование',
+    snow: 'снег', ocean: 'океан', tickets: 'билеты', apartment: 'квартира', train: 'поезд', interview: 'собеседование',
     great: 'отличный; здорово', were: 'были (are в прошлом)', did: 'вспомогательное слово прошлого (do)', him: 'его, ему', worry: 'волноваться',
     dinner: 'ужин', cold: 'холодный; холодно', colder: 'холоднее', small: 'маленький', visit: 'навещать, посещать', buy: 'купить',
     speak: 'говорить', will: 'будет (будущее время)', week: 'неделя', understand: 'понимать', talk: 'разговаривать', reservation: 'бронь',

@@ -47,10 +47,11 @@
     ],
     size: 3,
     items: [
-      S('This is [a] cat.|Это кот.', 'an,the'), S('It is [an] apple.|Это яблоко.', 'a,the'), S('I have [an] idea!|У меня есть идея!', 'a,the'),
-      S('That is [a] big dog.|Это большая собака.', 'an,the'), S('[This] is my phone.|Вот это — мой телефон (он рядом).', 'That'),
-      S('[That] is your car.|Вон то — твоя машина (она далеко).', 'This'), S('She is [an] actor.|Она актриса.', 'a,the'),
-      S('Open [the] door, please.|Откройте дверь, пожалуйста.', 'a,an'), S('I need [a] taxi.|Мне нужно такси.', 'an,the')
+      // where "the" would also be grammatical, only a / an are offered
+      S('This is [a] cat.|Это кот.', 'an'), S('It is [an] apple.|Это яблоко.', 'a'), S('I have [an] idea!|У меня есть идея!', 'a,the'),
+      S('That is [a] big dog.|Вон то — большая собака.', 'an'), S('[This] is my phone.|Вот это — мой телефон (он рядом).', 'That'),
+      S('[That] is your car.|Вон то — твоя машина (она далеко).', 'This'), S('She is [an] actor.|Она актриса.', 'a'),
+      S('Open [the] door, please.|Откройте дверь, пожалуйста.', 'a,an'), S('I need [a] taxi.|Мне нужно такси.', 'an')
     ]
   });
 
@@ -65,7 +66,7 @@
     items: [
       S('I [like] coffee.|Я люблю кофе.', 'want,can'), S('I don’t [like] rain.|Я не люблю дождь.', 'can,am'), S('I [want] a ticket.|Я хочу билет.', 'can,am'),
       S('I want [to] eat.|Я хочу есть.', 'a,the'), S('Do you [like] music?|Тебе нравится музыка?', 'can,are'), S('I [can] swim.|Я умею плавать.', 'like,am'),
-      S('I [can’t] swim.|Я не умею плавать.', 'don’t,am'), S('[Can] you help me?|Вы можете мне помочь?', 'Do,Are'), S('I can speak [English]!|Я умею говорить по-английски!', 'England,Russia')
+      S('I [can’t] swim.|Я не умею плавать.', 'not,am'), S('[Can] you help me?|Вы можете мне помочь?', 'Do,Are'), S('I can speak [English]!|Я умею говорить по-английски!', 'England,Russia')
     ]
   });
 

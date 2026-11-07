@@ -58,7 +58,7 @@
     items: [
       P('I’m Anna.|Я Анна.|🙋‍♀️'), P('My name is Anna.|Меня зовут Анна.|📛'), P('What’s your name?|Как вас зовут?|❓'), P('Nice to meet you!|Приятно познакомиться!|🤝'),
       P('How are you?|Как дела?|🙂'), P('I’m fine, thanks.|Хорошо, спасибо.|👍'), P('And you?|А у вас?|👉'), P('Where are you from?|Откуда вы?|🌍'),
-      P('I’m from Russia.|Я из России.|🏠'), P('I don’t understand.|Я не понимаю.|🤷'), P('Can you repeat, please?|Повторите, пожалуйста.|🔁'),
+      P('I’m from Russia.|Я из России.|🏠'), P('I don’t understand.|Я не понимаю.|🤷'), P('Can you repeat that, please?|Повторите, пожалуйста.|🔁'),
       P('Slowly, please.|Помедленнее, пожалуйста.|🐌'), P('I speak a little English.|Я немного говорю по-английски.|🤏')
     ]
   });
@@ -115,7 +115,7 @@
     id: 'u09', zone: 1, line: 'talk', title: 'Цвета', sub: 'Какого это цвета?', glyph: 'red',
     tips: [
       { t: 'Синий и голубой', x: 'В английском это один цвет — <b>blue</b>. Голубой можно сказать light blue.' },
-      { t: 'orange', x: '<b>orange</b> — и «оранжевый», и «апельсин».' }
+      { t: 'orange', x: '<b>orange</b> — и «оранжевый», и «апельсин». Рыжий кот по-английски тоже orange: <b>an orange cat</b> (не red).' }
     ],
     items: [
       ...REF('w:red'), W('blue|синий, голубой|🔵'), W('green|зелёный|🟢'), W('yellow|жёлтый|🟡'),

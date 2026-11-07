@@ -239,6 +239,7 @@
     want: '<b>want</b> — хочу.',
     can: '<b>can</b> — могу, умею. После can глагол без to: I can swim.',
     'can’t': '<b>can’t</b> — не могу, не умею.',
+    not: '<b>not</b> — «не», но перед глаголом одно оно не ставится: нужно can’t, don’t, isn’t.',
     to: '<b>to</b> ставится после want и going: I want to eat, I’m going to call.',
     do: '<b>do</b> — вспомогательное слово для вопросов с I, you, we, they.',
     does: '<b>does</b> — для вопросов с he, she, it. После него у глагола нет -s.',
